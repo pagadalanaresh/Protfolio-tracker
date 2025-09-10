@@ -194,6 +194,36 @@ class PortfolioTracker {
         document.getElementById('stockForm').reset();
     }
 
+    toggleForm() {
+        const formContent = document.getElementById('stockForm');
+        const toggleIcon = document.getElementById('toggleIcon');
+        
+        if (formContent.classList.contains('collapsed')) {
+            // Expand form
+            formContent.classList.remove('collapsed');
+            toggleIcon.textContent = '−';
+        } else {
+            // Collapse form
+            formContent.classList.add('collapsed');
+            toggleIcon.textContent = '+';
+        }
+    }
+
+    toggleSection(sectionId) {
+        const sectionContent = document.getElementById(`content-${sectionId}`);
+        const toggleIcon = document.getElementById(`toggle-${sectionId}`);
+        
+        if (sectionContent.classList.contains('collapsed')) {
+            // Expand section
+            sectionContent.classList.remove('collapsed');
+            toggleIcon.textContent = '−';
+        } else {
+            // Collapse section
+            sectionContent.classList.add('collapsed');
+            toggleIcon.textContent = '+';
+        }
+    }
+
     async loadMarketIndices() {
         try {
             // Fetch Nifty 50 data
@@ -712,78 +742,80 @@ class PortfolioTracker {
         const totalFinalPLPercent = totalInvested > 0 ? (totalFinalPL / totalInvested) * 100 : 0;
 
         closedContainer.innerHTML = `
-            <table class="portfolio-table">
-                <thead>
-                    <tr>
-                        <th onclick="portfolioTracker.sortClosedPositions('name')" style="cursor: pointer;">
-                            Stock <span id="sort-closed-name" class="sort-arrow">↕</span>
-                        </th>
-                        <th onclick="portfolioTracker.sortClosedPositions('ticker')" style="cursor: pointer;">
-                            Ticker <span id="sort-closed-ticker" class="sort-arrow">↕</span>
-                        </th>
-                        <th onclick="portfolioTracker.sortClosedPositions('quantity')" style="cursor: pointer;">
-                            Quantity <span id="sort-closed-quantity" class="sort-arrow">↕</span>
-                        </th>
-                        <th onclick="portfolioTracker.sortClosedPositions('position')" style="cursor: pointer;">
-                            Position <span id="sort-closed-position" class="sort-arrow">↕</span>
-                        </th>
-                        <th onclick="portfolioTracker.sortClosedPositions('buyPrice')" style="cursor: pointer;">
-                            Buy Price <span id="sort-closed-buyPrice" class="sort-arrow">↕</span>
-                        </th>
-                        <th onclick="portfolioTracker.sortClosedPositions('closePrice')" style="cursor: pointer;">
-                            Close Price <span id="sort-closed-closePrice" class="sort-arrow">↕</span>
-                        </th>
-                        <th onclick="portfolioTracker.sortClosedPositions('invested')" style="cursor: pointer;">
-                            Invested <span id="sort-closed-invested" class="sort-arrow">↕</span>
-                        </th>
-                        <th onclick="portfolioTracker.sortClosedPositions('closeValue')" style="cursor: pointer;">
-                            Final Value <span id="sort-closed-closeValue" class="sort-arrow">↕</span>
-                        </th>
-                        <th onclick="portfolioTracker.sortClosedPositions('finalPL')" style="cursor: pointer;">
-                            Final P&L <span id="sort-closed-finalPL" class="sort-arrow">↕</span>
-                        </th>
-                        <th onclick="portfolioTracker.sortClosedPositions('finalPLPercent')" style="cursor: pointer;">
-                            Final P&L % <span id="sort-closed-finalPLPercent" class="sort-arrow">↕</span>
-                        </th>
-                        <th onclick="portfolioTracker.sortClosedPositions('holdingPeriod')" style="cursor: pointer;">
-                            Holding Period <span id="sort-closed-holdingPeriod" class="sort-arrow">↕</span>
-                        </th>
-                        <th onclick="portfolioTracker.sortClosedPositions('closedDate')" style="cursor: pointer;">
-                            Closed Date <span id="sort-closed-closedDate" class="sort-arrow">↕</span>
-                        </th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${this.closedPositions.map(position => `
+            <div class="table-container">
+                <table>
+                    <thead>
                         <tr>
-                            <td><strong>${position.name}</strong></td>
-                            <td>${position.ticker}</td>
-                            <td>${position.quantity}</td>
-                            <td><span class="position-badge position-${position.position ? position.position.toLowerCase() : 'medium'}">${position.position || 'Medium'}</span></td>
-                            <td>₹${position.buyPrice.toFixed(2)}</td>
-                            <td>₹${position.closePrice.toFixed(2)}</td>
-                            <td>₹${position.invested.toFixed(2)}</td>
-                            <td>₹${position.closeValue.toFixed(2)}</td>
-                            <td class="${position.finalPL >= 0 ? 'positive' : 'negative'}">
-                                ₹${position.finalPL.toFixed(2)}
-                            </td>
-                            <td class="${position.finalPLPercent >= 0 ? 'positive' : 'negative'}">
-                                ${position.finalPLPercent.toFixed(2)}%
-                            </td>
-                            <td>${position.holdingPeriod}</td>
-                            <td>${new Date(position.closedDate).toLocaleDateString()}</td>
-                            <td>
-                                <div class="action-buttons">
-                                    <button class="delete-btn" onclick="portfolioTracker.deleteClosedPosition(${position.id})">
-                                        Delete
-                                    </button>
-                                </div>
-                            </td>
+                            <th onclick="portfolioTracker.sortClosedPositions('name')" style="cursor: pointer;">
+                                Stock <span id="sort-closed-name" class="sort-arrow">↕</span>
+                            </th>
+                            <th onclick="portfolioTracker.sortClosedPositions('ticker')" style="cursor: pointer;">
+                                Ticker <span id="sort-closed-ticker" class="sort-arrow">↕</span>
+                            </th>
+                            <th onclick="portfolioTracker.sortClosedPositions('quantity')" style="cursor: pointer;">
+                                Quantity <span id="sort-closed-quantity" class="sort-arrow">↕</span>
+                            </th>
+                            <th onclick="portfolioTracker.sortClosedPositions('position')" style="cursor: pointer;">
+                                Position <span id="sort-closed-position" class="sort-arrow">↕</span>
+                            </th>
+                            <th onclick="portfolioTracker.sortClosedPositions('buyPrice')" style="cursor: pointer;">
+                                Buy Price <span id="sort-closed-buyPrice" class="sort-arrow">↕</span>
+                            </th>
+                            <th onclick="portfolioTracker.sortClosedPositions('closePrice')" style="cursor: pointer;">
+                                Close Price <span id="sort-closed-closePrice" class="sort-arrow">↕</span>
+                            </th>
+                            <th onclick="portfolioTracker.sortClosedPositions('invested')" style="cursor: pointer;">
+                                Invested <span id="sort-closed-invested" class="sort-arrow">↕</span>
+                            </th>
+                            <th onclick="portfolioTracker.sortClosedPositions('closeValue')" style="cursor: pointer;">
+                                Final Value <span id="sort-closed-closeValue" class="sort-arrow">↕</span>
+                            </th>
+                            <th onclick="portfolioTracker.sortClosedPositions('finalPL')" style="cursor: pointer;">
+                                Final P&L <span id="sort-closed-finalPL" class="sort-arrow">↕</span>
+                            </th>
+                            <th onclick="portfolioTracker.sortClosedPositions('finalPLPercent')" style="cursor: pointer;">
+                                Final P&L % <span id="sort-closed-finalPLPercent" class="sort-arrow">↕</span>
+                            </th>
+                            <th onclick="portfolioTracker.sortClosedPositions('holdingPeriod')" style="cursor: pointer;">
+                                Holding Period <span id="sort-closed-holdingPeriod" class="sort-arrow">↕</span>
+                            </th>
+                            <th onclick="portfolioTracker.sortClosedPositions('closedDate')" style="cursor: pointer;">
+                                Closed Date <span id="sort-closed-closedDate" class="sort-arrow">↕</span>
+                            </th>
+                            <th>Actions</th>
                         </tr>
-                    `).join('')}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        ${this.closedPositions.map(position => `
+                            <tr>
+                                <td><strong>${position.name}</strong></td>
+                                <td>${position.ticker}</td>
+                                <td>${position.quantity}</td>
+                                <td><span class="position-badge position-${position.position ? position.position.toLowerCase() : 'medium'}">${position.position || 'Medium'}</span></td>
+                                <td>₹${position.buyPrice.toFixed(2)}</td>
+                                <td>₹${position.closePrice.toFixed(2)}</td>
+                                <td>₹${position.invested.toFixed(2)}</td>
+                                <td>₹${position.closeValue.toFixed(2)}</td>
+                                <td class="${position.finalPL >= 0 ? 'positive' : 'negative'}">
+                                    ₹${position.finalPL.toFixed(2)}
+                                </td>
+                                <td class="${position.finalPLPercent >= 0 ? 'positive' : 'negative'}">
+                                    ${position.finalPLPercent.toFixed(2)}%
+                                </td>
+                                <td>${position.holdingPeriod}</td>
+                                <td>${new Date(position.closedDate).toLocaleDateString()}</td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <button class="delete-btn" onclick="portfolioTracker.deleteClosedPosition(${position.id})">
+                                            Delete
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
             <div class="totals-section">
                 <div class="totals-row">
                     <span class="totals-label">Total Invested:</span>
