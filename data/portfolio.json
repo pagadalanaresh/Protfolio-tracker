@@ -9,11 +9,14 @@
     "invested": 20580,
     "currentValue": 22345.399999999998,
     "purchaseDate": "2025-08-28",
-    "lastUpdated": "2025-09-10T10:16:41.940Z",
+    "lastUpdated": "2025-09-10T15:38:42.433Z",
     "pl": 1765.3999999999978,
     "plPercent": 8.578231292516996,
     "dayChange": 13.85,
-    "dayChangePercent": 1.77
+    "dayChangePercent": 1.77,
+    "targetPrice": 820,
+    "stopLoss": 684,
+    "position": "Medium"
   },
   {
     "id": 1757487454960,
@@ -25,11 +28,14 @@
     "invested": 36500,
     "currentValue": 38107.5,
     "purchaseDate": "2025-09-08",
-    "lastUpdated": "2025-09-10T10:16:41.991Z",
+    "lastUpdated": "2025-09-10T15:38:44.729Z",
     "pl": 1607.5,
     "plPercent": 4.404109589041096,
     "dayChange": 2.7,
-    "dayChangePercent": 0.18
+    "dayChangePercent": 0.18,
+    "targetPrice": 1600,
+    "stopLoss": 1360,
+    "position": "Medium"
   },
   {
     "id": 1757487009226,
@@ -41,11 +47,14 @@
     "invested": 39226.32,
     "currentValue": 39560,
     "purchaseDate": "2025-08-21",
-    "lastUpdated": "2025-09-10T10:16:42.000Z",
+    "lastUpdated": "2025-09-10T15:38:44.733Z",
     "pl": 333.6800000000003,
     "plPercent": 0.8506533368411829,
     "dayChange": 35.25,
-    "dayChangePercent": 3.98
+    "dayChangePercent": 3.98,
+    "targetPrice": 1070,
+    "stopLoss": 895,
+    "position": "Medium"
   },
   {
     "id": 1757487154285,
@@ -57,11 +66,14 @@
     "invested": 61250,
     "currentValue": 61577.5,
     "purchaseDate": "2025-09-01",
-    "lastUpdated": "2025-09-10T10:16:42.009Z",
+    "lastUpdated": "2025-09-10T15:38:44.735Z",
     "pl": 327.5,
     "plPercent": 0.5346938775510204,
     "dayChange": 2.05,
-    "dayChangePercent": 0.84
+    "dayChangePercent": 0.84,
+    "targetPrice": 275,
+    "stopLoss": 229.5,
+    "position": "Medium"
   },
   {
     "id": 1757487078887,
@@ -73,12 +85,14 @@
     "invested": 14684.6,
     "currentValue": 14689.5,
     "purchaseDate": "2025-09-09",
-    "lastUpdated": "2025-09-10T10:16:42.011Z",
+    "lastUpdated": "2025-09-10T15:38:44.740Z",
     "pl": 4.899999999999636,
     "plPercent": 0.03336829059013958,
     "position": "Long",
     "dayChange": -1.48,
-    "dayChangePercent": -0.7
+    "dayChangePercent": -0.7,
+    "targetPrice": 250,
+    "stopLoss": null
   },
   {
     "id": 1757487508940,
@@ -90,11 +104,14 @@
     "invested": 69750,
     "currentValue": 69655,
     "purchaseDate": "2025-09-04",
-    "lastUpdated": "2025-09-10T10:16:42.014Z",
+    "lastUpdated": "2025-09-10T15:38:44.744Z",
     "pl": -95,
     "plPercent": -0.13620071684587814,
     "dayChange": -38.4,
-    "dayChangePercent": -2.68
+    "dayChangePercent": -2.68,
+    "targetPrice": 1550,
+    "stopLoss": 1285,
+    "position": "Medium"
   },
   {
     "id": 1757487579776,
@@ -106,10 +123,13 @@
     "invested": 43500,
     "currentValue": 42390,
     "purchaseDate": "2025-09-09",
-    "lastUpdated": "2025-09-10T10:16:42.017Z",
+    "lastUpdated": "2025-09-10T15:38:44.747Z",
     "pl": -1110,
     "plPercent": -2.5517241379310347,
     "dayChange": -12.75,
-    "dayChangePercent": -2.92
+    "dayChangePercent": -2.92,
+    "targetPrice": 490,
+    "stopLoss": 403,
+    "position": "Medium"
   }
 ]
