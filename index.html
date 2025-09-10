@@ -31,6 +31,34 @@
             </div>
         </div>
 
+        <div class="portfolio-summary">
+            <div class="section-header">
+                <h2>Portfolio Summary</h2>
+                <button type="button" class="toggle-section-btn" onclick="portfolioTracker.toggleSection('portfolio-summary')">
+                    <span id="toggle-portfolio-summary">−</span>
+                </button>
+            </div>
+            <div class="section-content" id="content-portfolio-summary">
+                <div class="summary-cards">
+                <div class="card">
+                    <h3>Total Invested</h3>
+                    <p id="totalInvested">₹0.00</p>
+                </div>
+                <div class="card">
+                    <h3>Current Value</h3>
+                    <p id="currentValue">₹0.00</p>
+                </div>
+                <div class="card">
+                    <h3>Total P&L</h3>
+                    <p id="totalPL">₹0.00</p>
+                </div>
+                <div class="card">
+                    <h3>Total P&L %</h3>
+                    <p id="totalPLPercent">0.00%</p>
+                </div>
+            </div>
+        </div>
+
         <div class="input-section">
             <div class="form-header">
                 <h2>Add Stock to Portfolio</h2>
@@ -88,34 +116,6 @@
                     <button type="button" id="cancelEdit" onclick="portfolioTracker.cancelEdit()" style="display: none; background: #e2e8f0; color: #4a5568; margin-left: 10px;">Cancel</button>
                 </div>
             </form>
-        </div>
-
-        <div class="portfolio-summary">
-            <div class="section-header">
-                <h2>Portfolio Summary</h2>
-                <button type="button" class="toggle-section-btn" onclick="portfolioTracker.toggleSection('portfolio-summary')">
-                    <span id="toggle-portfolio-summary">−</span>
-                </button>
-            </div>
-            <div class="section-content" id="content-portfolio-summary">
-                <div class="summary-cards">
-                <div class="card">
-                    <h3>Total Invested</h3>
-                    <p id="totalInvested">₹0.00</p>
-                </div>
-                <div class="card">
-                    <h3>Current Value</h3>
-                    <p id="currentValue">₹0.00</p>
-                </div>
-                <div class="card">
-                    <h3>Total P&L</h3>
-                    <p id="totalPL">₹0.00</p>
-                </div>
-                <div class="card">
-                    <h3>Total P&L %</h3>
-                    <p id="totalPLPercent">0.00%</p>
-                </div>
-            </div>
         </div>
 
         <div class="portfolio-table">
