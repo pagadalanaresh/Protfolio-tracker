@@ -46,6 +46,18 @@
                 </div>
                 
                 <div class="form-group">
+                    <label for="targetPrice">Target Price (₹):</label>
+                    <input type="number" id="targetPrice" step="0.01" placeholder="0.00">
+                    <small>Optional target selling price</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="stopLoss">Stop Loss (₹):</label>
+                    <input type="number" id="stopLoss" step="0.01" placeholder="0.00">
+                    <small>Optional stop loss price</small>
+                </div>
+                
+                <div class="form-group">
                     <label for="quantity">Quantity:</label>
                     <input type="number" id="quantity" placeholder="0" required>
                 </div>
@@ -118,6 +130,12 @@
                             </th>
                             <th onclick="portfolioTracker.sortTable('currentPrice')" style="cursor: pointer;">
                                 Current Price <span id="sort-currentPrice" class="sort-arrow">↕</span>
+                            </th>
+                            <th onclick="portfolioTracker.sortTable('targetPrice')" style="cursor: pointer;">
+                                Target Price <span id="sort-targetPrice" class="sort-arrow">↕</span>
+                            </th>
+                            <th onclick="portfolioTracker.sortTable('stopLoss')" style="cursor: pointer;">
+                                Stop Loss <span id="sort-stopLoss" class="sort-arrow">↕</span>
                             </th>
                             <th onclick="portfolioTracker.sortTable('purchaseDate')" style="cursor: pointer;">
                                 Purchase Date <span id="sort-purchaseDate" class="sort-arrow">↕</span>

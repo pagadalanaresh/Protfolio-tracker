@@ -56,12 +56,14 @@ class PortfolioTracker {
     async addStock() {
         const ticker = document.getElementById('ticker').value.toUpperCase().trim();
         const buyPrice = parseFloat(document.getElementById('buyPrice').value);
+        const targetPrice = parseFloat(document.getElementById('targetPrice').value) || null;
+        const stopLoss = parseFloat(document.getElementById('stopLoss').value) || null;
         const quantity = parseInt(document.getElementById('quantity').value);
         const position = document.getElementById('position').value;
         const purchaseDate = document.getElementById('purchaseDate').value;
 
         if (!ticker || !buyPrice || !quantity || !position || !purchaseDate) {
-            alert('Please fill in all fields');
+            alert('Please fill in all required fields');
             return;
         }
 
@@ -81,6 +83,8 @@ class PortfolioTracker {
                         ticker: ticker,
                         name: stockData.name,
                         buyPrice: buyPrice,
+                        targetPrice: targetPrice,
+                        stopLoss: stopLoss,
                         quantity: quantity,
                         position: position,
                         invested: buyPrice * quantity,
@@ -109,6 +113,8 @@ class PortfolioTracker {
                     ticker: ticker,
                     name: stockData.name,
                     buyPrice: buyPrice,
+                    targetPrice: targetPrice,
+                    stopLoss: stopLoss,
                     currentPrice: stockData.currentPrice,
                     quantity: quantity,
                     position: position,
@@ -153,6 +159,8 @@ class PortfolioTracker {
         // Populate form with stock data
         document.getElementById('ticker').value = stock.ticker;
         document.getElementById('buyPrice').value = stock.buyPrice;
+        document.getElementById('targetPrice').value = stock.targetPrice || '';
+        document.getElementById('stopLoss').value = stock.stopLoss || '';
         document.getElementById('quantity').value = stock.quantity;
         document.getElementById('position').value = stock.position || 'Medium';
         document.getElementById('purchaseDate').value = stock.purchaseDate;
@@ -597,7 +605,7 @@ class PortfolioTracker {
         if (this.portfolio.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="13" class="empty-state">
+                    <td colspan="15" class="empty-state">
                         <h3>No stocks in portfolio</h3>
                         <p>Add your first stock to get started!</p>
                     </td>
@@ -621,6 +629,8 @@ class PortfolioTracker {
                         ${(stock.dayChangePercent || 0) >= 0 ? '↑' : '↓'}${Math.abs(stock.dayChangePercent || 0).toFixed(2)}%
                     </span>
                 </td>
+                <td>${stock.targetPrice ? '₹' + stock.targetPrice.toFixed(2) : '--'}</td>
+                <td>${stock.stopLoss ? '₹' + stock.stopLoss.toFixed(2) : '--'}</td>
                 <td>${stock.purchaseDate ? new Date(stock.purchaseDate).toLocaleDateString() : 'N/A'}</td>
                 <td>${stock.purchaseDate ? this.calculateHoldingPeriod(stock.purchaseDate) : 'N/A'}</td>
                 <td>₹${stock.invested.toFixed(2)}</td>
