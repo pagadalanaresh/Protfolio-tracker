@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: indian-portfolio-tracker
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: portfolio-tracker-db
+          property: connectionString
+
+databases:
+  - name: portfolio-tracker-db
+    plan: free
+    databaseName: portfolio_tracker
+    user: portfolio_user
