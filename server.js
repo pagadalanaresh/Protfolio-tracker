@@ -9,7 +9,8 @@ const {
   initializeDatabase, 
   userOperations,
   portfolioOperations, 
-  closedPositionsOperations 
+  closedPositionsOperations,
+  adminOperations
 } = require('./database');
 
 const app = express();
@@ -20,17 +21,103 @@ app.use(cors());
 app.use(express.json());
 app.use(cookieParser());
 
-// Request logging middleware
+// Enhanced Request and Response logging middleware
 app.use((req, res, next) => {
   const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] ${req.method} ${req.url} - IP: ${req.ip || req.connection.remoteAddress}`);
+  const requestId = Math.random().toString(36).substr(2, 9);
   
-  // Log request body for POST requests (excluding sensitive data)
-  if (req.method === 'POST' && req.body) {
+  // Add request ID to request object for tracking
+  req.requestId = requestId;
+  
+  // Log incoming request
+  console.log(`\n🔵 [${timestamp}] [${requestId}] INCOMING REQUEST`);
+  console.log(`   Method: ${req.method}`);
+  console.log(`   URL: ${req.url}`);
+  console.log(`   IP: ${req.ip || req.connection.remoteAddress}`);
+  console.log(`   User-Agent: ${req.get('User-Agent') || 'N/A'}`);
+  
+  // Log request headers (excluding sensitive ones)
+  const headers = { ...req.headers };
+  if (headers.authorization) headers.authorization = '[HIDDEN]';
+  if (headers.cookie) headers.cookie = '[HIDDEN]';
+  console.log(`   Headers:`, JSON.stringify(headers, null, 4));
+  
+  // Log query parameters
+  if (Object.keys(req.query).length > 0) {
+    console.log(`   Query Params:`, JSON.stringify(req.query, null, 4));
+  }
+  
+  // Log request body for POST/PUT/PATCH requests (excluding sensitive data)
+  if (['POST', 'PUT', 'PATCH'].includes(req.method) && req.body) {
     const logBody = { ...req.body };
     if (logBody.password) logBody.password = '[HIDDEN]';
-    console.log(`[${timestamp}] Request Body:`, JSON.stringify(logBody, null, 2));
+    if (logBody.sessionToken) logBody.sessionToken = '[HIDDEN]';
+    console.log(`   Request Body:`, JSON.stringify(logBody, null, 4));
   }
+  
+  // Capture original res.json and res.send methods to log responses
+  const originalJson = res.json;
+  const originalSend = res.send;
+  const originalStatus = res.status;
+  
+  let responseBody = null;
+  let statusCode = 200;
+  
+  // Override res.status to capture status code
+  res.status = function(code) {
+    statusCode = code;
+    return originalStatus.call(this, code);
+  };
+  
+  // Override res.json to capture response body
+  res.json = function(body) {
+    responseBody = body;
+    return originalJson.call(this, body);
+  };
+  
+  // Override res.send to capture response body
+  res.send = function(body) {
+    if (!responseBody) responseBody = body;
+    return originalSend.call(this, body);
+  };
+  
+  // Log response when request finishes
+  res.on('finish', () => {
+    const endTimestamp = new Date().toISOString();
+    const duration = Date.now() - new Date(timestamp).getTime();
+    
+    console.log(`\n🟢 [${endTimestamp}] [${requestId}] OUTGOING RESPONSE`);
+    console.log(`   Status: ${res.statusCode || statusCode}`);
+    console.log(`   Duration: ${duration}ms`);
+    
+    // Log response headers
+    const responseHeaders = res.getHeaders();
+    if (Object.keys(responseHeaders).length > 0) {
+      console.log(`   Response Headers:`, JSON.stringify(responseHeaders, null, 4));
+    }
+    
+    // Log response body (limit size and hide sensitive data)
+    if (responseBody) {
+      let logResponseBody = responseBody;
+      
+      // If response is an object, sanitize sensitive fields
+      if (typeof responseBody === 'object') {
+        logResponseBody = { ...responseBody };
+        if (logResponseBody.sessionToken) logResponseBody.sessionToken = '[HIDDEN]';
+        if (logResponseBody.password) logResponseBody.password = '[HIDDEN]';
+      }
+      
+      // Limit response body size for logging
+      const responseStr = JSON.stringify(logResponseBody, null, 4);
+      if (responseStr.length > 2000) {
+        console.log(`   Response Body: [TRUNCATED - ${responseStr.length} chars]`, responseStr.substring(0, 2000) + '...');
+      } else {
+        console.log(`   Response Body:`, responseStr);
+      }
+    }
+    
+    console.log(`─────────────────────────────────────────────────────────────────`);
+  });
   
   next();
 });
@@ -64,6 +151,22 @@ app.get('/index.html', (req, res) => {
       res.status(500).send('Error loading main page');
     } else {
       console.log(`[${timestamp}] Successfully served index.html`);
+    }
+  });
+});
+
+// Serve admin.html for admin portal
+app.get('/admin.html', (req, res) => {
+  const timestamp = new Date().toISOString();
+  const filePath = path.join(__dirname, 'admin.html');
+  console.log(`[${timestamp}] Serving admin.html from: ${filePath}`);
+  
+  res.sendFile(filePath, (err) => {
+    if (err) {
+      console.error(`[${timestamp}] Error serving admin.html:`, err);
+      res.status(500).send('Error loading admin portal');
+    } else {
+      console.log(`[${timestamp}] Successfully served admin.html`);
     }
   });
 });
@@ -119,6 +222,42 @@ async function authenticateUser(req, res, next) {
 // Generate session token
 function generateSessionToken() {
   return crypto.randomBytes(32).toString('hex');
+}
+
+// Create default admin user if none exists
+async function createDefaultAdmin() {
+  try {
+    console.log('🔍 Checking for existing admin users...');
+    
+    const hasAdmin = await adminOperations.hasAnyAdmin();
+    if (hasAdmin) {
+      console.log('ℹ️  Admin user already exists - skipping default admin creation');
+      return;
+    }
+
+    console.log('👤 Creating default admin user...');
+    
+    // Default admin credentials
+    const defaultUsername = 'naresh';
+    const defaultPassword = 'pagadala';
+    const defaultEmail = 'naresh@admin.local';
+    
+    // Hash password with admin salt
+    const passwordHash = crypto.createHash('sha256').update(defaultPassword + 'admin_salt').digest('hex');
+    
+    // Create default admin
+    const newAdmin = await adminOperations.createAdmin(defaultUsername, defaultEmail, passwordHash);
+    
+    console.log(`✅ Default admin created successfully - Username: ${newAdmin.username}`);
+    console.log('🔑 Default Admin Credentials:');
+    console.log(`   Username: ${defaultUsername}`);
+    console.log(`   Password: ${defaultPassword}`);
+    console.log('⚠️  Please change these credentials after first login for security!');
+    
+  } catch (error) {
+    console.error('❌ Error creating default admin:', error.message);
+    // Don't throw error - allow server to start even if default admin creation fails
+  }
 }
 
 // Authentication Routes
@@ -303,199 +442,124 @@ app.post('/api/auth/logout', async (req, res) => {
   }
 });
 
-// Data file paths (for migration purposes)
-const PORTFOLIO_FILE = path.join(__dirname, 'data', 'portfolio.json');
-const CLOSED_POSITIONS_FILE = path.join(__dirname, 'data', 'closed-positions.json');
-
-// Migration function to move JSON data to database
-async function migrateJsonToDatabase() {
-  try {
-    console.log('🔄 Starting migration from JSON to database...');
-    
-    // Check if JSON files exist and migrate data
-    try {
-      const portfolioData = await fs.readFile(PORTFOLIO_FILE, 'utf8');
-      const portfolio = JSON.parse(portfolioData);
-      if (portfolio.length > 0) {
-        await portfolioOperations.saveAll(portfolio);
-        console.log(`✅ Migrated ${portfolio.length} portfolio items to database`);
-      }
-    } catch (error) {
-      console.log('ℹ️  No portfolio.json file found or empty - skipping portfolio migration');
-    }
-
-    try {
-      const closedPositionsData = await fs.readFile(CLOSED_POSITIONS_FILE, 'utf8');
-      const closedPositions = JSON.parse(closedPositionsData);
-      if (closedPositions.length > 0) {
-        await closedPositionsOperations.saveAll(closedPositions);
-        console.log(`✅ Migrated ${closedPositions.length} closed positions to database`);
-      }
-    } catch (error) {
-      console.log('ℹ️  No closed-positions.json file found or empty - skipping closed positions migration');
-    }
-
-    console.log('✅ Migration completed successfully');
-  } catch (error) {
-    console.error('❌ Migration failed:', error.message);
-    // Don't throw error - allow server to start even if migration fails
-  }
-}
-
 // Global variable to track database availability
 let isDatabaseAvailable = false;
 
 // API Routes
 
-// Get portfolio data (requires authentication when database is available)
+// Get portfolio data (requires authentication and database)
 app.get('/api/portfolio', async (req, res) => {
   try {
-    if (isDatabaseAvailable) {
-      // Require authentication for database mode
-      const sessionToken = req.cookies.sessionToken;
-      if (!sessionToken) {
-        return res.status(401).json({ authenticated: false, message: 'Authentication required' });
-      }
-
-      const session = await userOperations.findSession(sessionToken);
-      if (!session) {
-        return res.status(401).json({ authenticated: false, message: 'Invalid session' });
-      }
-
-      const portfolio = await portfolioOperations.getAll(session.user_id);
-      res.json(portfolio);
-    } else {
-      // Fallback to JSON file (no authentication required)
-      const data = await fs.readFile(PORTFOLIO_FILE, 'utf8');
-      res.json(JSON.parse(data));
+    if (!isDatabaseAvailable) {
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Database connection required. Please ensure DATABASE_URL is configured.' 
+      });
     }
+
+    // Require authentication for database mode
+    const sessionToken = req.cookies.sessionToken;
+    if (!sessionToken) {
+      return res.status(401).json({ authenticated: false, message: 'Authentication required' });
+    }
+
+    const session = await userOperations.findSession(sessionToken);
+    if (!session) {
+      return res.status(401).json({ authenticated: false, message: 'Invalid session' });
+    }
+
+    const portfolio = await portfolioOperations.getAll(session.user_id);
+    res.json(portfolio);
   } catch (error) {
     console.error('Error fetching portfolio data:', error);
-    // Try fallback if database fails
-    if (isDatabaseAvailable) {
-      try {
-        const data = await fs.readFile(PORTFOLIO_FILE, 'utf8');
-        res.json(JSON.parse(data));
-      } catch (fallbackError) {
-        res.json([]);
-      }
-    } else {
-      res.json([]);
-    }
+    res.status(500).json({ success: false, message: 'Error fetching portfolio data' });
   }
 });
 
-// Save portfolio data (requires authentication when database is available)
+// Save portfolio data (requires authentication and database)
 app.post('/api/portfolio', async (req, res) => {
   try {
-    if (isDatabaseAvailable) {
-      // Require authentication for database mode
-      const sessionToken = req.cookies.sessionToken;
-      if (!sessionToken) {
-        return res.status(401).json({ authenticated: false, message: 'Authentication required' });
-      }
-
-      const session = await userOperations.findSession(sessionToken);
-      if (!session) {
-        return res.status(401).json({ authenticated: false, message: 'Invalid session' });
-      }
-
-      await portfolioOperations.saveAll(session.user_id, req.body);
-      res.json({ success: true, message: 'Portfolio saved successfully' });
-    } else {
-      // Fallback to JSON file (no authentication required)
-      await fs.writeFile(PORTFOLIO_FILE, JSON.stringify(req.body, null, 2));
-      res.json({ success: true, message: 'Portfolio saved successfully (fallback mode)' });
+    if (!isDatabaseAvailable) {
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Database connection required. Please ensure DATABASE_URL is configured.' 
+      });
     }
+
+    // Require authentication for database mode
+    const sessionToken = req.cookies.sessionToken;
+    if (!sessionToken) {
+      return res.status(401).json({ authenticated: false, message: 'Authentication required' });
+    }
+
+    const session = await userOperations.findSession(sessionToken);
+    if (!session) {
+      return res.status(401).json({ authenticated: false, message: 'Invalid session' });
+    }
+
+    await portfolioOperations.saveAll(session.user_id, req.body);
+    res.json({ success: true, message: 'Portfolio saved successfully' });
   } catch (error) {
     console.error('Error saving portfolio data:', error);
-    // Try fallback if database fails
-    if (isDatabaseAvailable) {
-      try {
-        await fs.writeFile(PORTFOLIO_FILE, JSON.stringify(req.body, null, 2));
-        res.json({ success: true, message: 'Portfolio saved successfully (fallback)' });
-      } catch (fallbackError) {
-        res.status(500).json({ success: false, message: 'Error saving portfolio' });
-      }
-    } else {
-      res.status(500).json({ success: false, message: 'Error saving portfolio' });
-    }
+    res.status(500).json({ success: false, message: 'Error saving portfolio data' });
   }
 });
 
-// Get closed positions data (requires authentication when database is available)
+// Get closed positions data (requires authentication and database)
 app.get('/api/closed-positions', async (req, res) => {
   try {
-    if (isDatabaseAvailable) {
-      // Require authentication for database mode
-      const sessionToken = req.cookies.sessionToken;
-      if (!sessionToken) {
-        return res.status(401).json({ authenticated: false, message: 'Authentication required' });
-      }
-
-      const session = await userOperations.findSession(sessionToken);
-      if (!session) {
-        return res.status(401).json({ authenticated: false, message: 'Invalid session' });
-      }
-
-      const closedPositions = await closedPositionsOperations.getAll(session.user_id);
-      res.json(closedPositions);
-    } else {
-      // Fallback to JSON file (no authentication required)
-      const data = await fs.readFile(CLOSED_POSITIONS_FILE, 'utf8');
-      res.json(JSON.parse(data));
+    if (!isDatabaseAvailable) {
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Database connection required. Please ensure DATABASE_URL is configured.' 
+      });
     }
+
+    // Require authentication for database mode
+    const sessionToken = req.cookies.sessionToken;
+    if (!sessionToken) {
+      return res.status(401).json({ authenticated: false, message: 'Authentication required' });
+    }
+
+    const session = await userOperations.findSession(sessionToken);
+    if (!session) {
+      return res.status(401).json({ authenticated: false, message: 'Invalid session' });
+    }
+
+    const closedPositions = await closedPositionsOperations.getAll(session.user_id);
+    res.json(closedPositions);
   } catch (error) {
     console.error('Error fetching closed positions data:', error);
-    // Try fallback if database fails
-    if (isDatabaseAvailable) {
-      try {
-        const data = await fs.readFile(CLOSED_POSITIONS_FILE, 'utf8');
-        res.json(JSON.parse(data));
-      } catch (fallbackError) {
-        res.json([]);
-      }
-    } else {
-      res.json([]);
-    }
+    res.status(500).json({ success: false, message: 'Error fetching closed positions data' });
   }
 });
 
-// Save closed positions data (requires authentication when database is available)
+// Save closed positions data (requires authentication and database)
 app.post('/api/closed-positions', async (req, res) => {
   try {
-    if (isDatabaseAvailable) {
-      // Require authentication for database mode
-      const sessionToken = req.cookies.sessionToken;
-      if (!sessionToken) {
-        return res.status(401).json({ authenticated: false, message: 'Authentication required' });
-      }
-
-      const session = await userOperations.findSession(sessionToken);
-      if (!session) {
-        return res.status(401).json({ authenticated: false, message: 'Invalid session' });
-      }
-
-      await closedPositionsOperations.saveAll(session.user_id, req.body);
-      res.json({ success: true, message: 'Closed positions saved successfully' });
-    } else {
-      // Fallback to JSON file (no authentication required)
-      await fs.writeFile(CLOSED_POSITIONS_FILE, JSON.stringify(req.body, null, 2));
-      res.json({ success: true, message: 'Closed positions saved successfully (fallback mode)' });
+    if (!isDatabaseAvailable) {
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Database connection required. Please ensure DATABASE_URL is configured.' 
+      });
     }
+
+    // Require authentication for database mode
+    const sessionToken = req.cookies.sessionToken;
+    if (!sessionToken) {
+      return res.status(401).json({ authenticated: false, message: 'Authentication required' });
+    }
+
+    const session = await userOperations.findSession(sessionToken);
+    if (!session) {
+      return res.status(401).json({ authenticated: false, message: 'Invalid session' });
+    }
+
+    await closedPositionsOperations.saveAll(session.user_id, req.body);
+    res.json({ success: true, message: 'Closed positions saved successfully' });
   } catch (error) {
     console.error('Error saving closed positions data:', error);
-    // Try fallback if database fails
-    if (isDatabaseAvailable) {
-      try {
-        await fs.writeFile(CLOSED_POSITIONS_FILE, JSON.stringify(req.body, null, 2));
-        res.json({ success: true, message: 'Closed positions saved successfully (fallback)' });
-      } catch (fallbackError) {
-        res.status(500).json({ success: false, message: 'Error saving closed positions' });
-      }
-    } else {
-      res.status(500).json({ success: false, message: 'Error saving closed positions' });
-    }
+    res.status(500).json({ success: false, message: 'Error saving closed positions data' });
   }
 });
 
@@ -561,6 +625,408 @@ app.get('/api/db-status', async (req, res) => {
   }
 });
 
+// Admin Authentication Routes
+
+// Check if any admin exists (for initial setup)
+app.get('/api/admin/setup-required', async (req, res) => {
+  try {
+    if (!isDatabaseAvailable) {
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Database connection required' 
+      });
+    }
+
+    const hasAdmin = await adminOperations.hasAnyAdmin();
+    res.json({ setupRequired: !hasAdmin });
+  } catch (error) {
+    console.error('Error checking admin setup:', error);
+    res.status(500).json({ success: false, message: 'Error checking admin setup' });
+  }
+});
+
+// Create first admin (only if no admin exists)
+app.post('/api/admin/setup', async (req, res) => {
+  try {
+    if (!isDatabaseAvailable) {
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Database connection required' 
+      });
+    }
+
+    // Check if admin already exists
+    const hasAdmin = await adminOperations.hasAnyAdmin();
+    if (hasAdmin) {
+      return res.status(400).json({ success: false, message: 'Admin already exists' });
+    }
+
+    const { username, email, password } = req.body;
+
+    // Validate input
+    if (!username || !email || !password) {
+      return res.status(400).json({ success: false, message: 'Username, email, and password are required' });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 8 characters long' });
+    }
+
+    // Hash password
+    const passwordHash = crypto.createHash('sha256').update(password + 'admin_salt').digest('hex');
+
+    // Create admin
+    const newAdmin = await adminOperations.createAdmin(username, email, passwordHash);
+    
+    res.json({ 
+      success: true, 
+      message: 'Admin account created successfully',
+      admin: {
+        id: newAdmin.id,
+        username: newAdmin.username,
+        email: newAdmin.email
+      }
+    });
+  } catch (error) {
+    console.error('Admin setup error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+// Admin login
+app.post('/api/admin/login', async (req, res) => {
+  try {
+    if (!isDatabaseAvailable) {
+      return res.status(503).json({ success: false, message: 'Database connection required' });
+    }
+
+    const { username, password } = req.body;
+
+    // Validate input
+    if (!username || !password) {
+      return res.status(400).json({ success: false, message: 'Username and password are required' });
+    }
+
+    // Find admin
+    const admin = await adminOperations.findByUsername(username);
+    if (!admin) {
+      return res.status(401).json({ success: false, message: 'Invalid username or password' });
+    }
+
+    // Verify password
+    const hashedPassword = crypto.createHash('sha256').update(password + 'admin_salt').digest('hex');
+    if (hashedPassword !== admin.password_hash) {
+      return res.status(401).json({ success: false, message: 'Invalid username or password' });
+    }
+
+    // Create admin session
+    const sessionToken = generateSessionToken();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    await adminOperations.createSession(admin.id, sessionToken, expiresAt);
+
+    // Set admin cookie
+    res.cookie('adminSessionToken', sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      expires: expiresAt
+    });
+
+    res.json({ 
+      success: true, 
+      message: 'Admin login successful',
+      admin: {
+        username: admin.username,
+        email: admin.email
+      }
+    });
+  } catch (error) {
+    console.error('Admin login error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+// Admin logout
+app.post('/api/admin/logout', async (req, res) => {
+  try {
+    const sessionToken = req.cookies.adminSessionToken;
+    
+    if (sessionToken && isDatabaseAvailable) {
+      await adminOperations.deleteSession(sessionToken);
+    }
+
+    res.clearCookie('adminSessionToken');
+    res.json({ success: true, message: 'Admin logged out successfully' });
+  } catch (error) {
+    console.error('Admin logout error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+// Check admin authentication status
+app.get('/api/admin/auth/check', async (req, res) => {
+  try {
+    const sessionToken = req.cookies.adminSessionToken;
+    
+    if (!sessionToken || !isDatabaseAvailable) {
+      return res.json({ authenticated: false });
+    }
+
+    const session = await adminOperations.findSession(sessionToken);
+    if (!session) {
+      return res.json({ authenticated: false });
+    }
+
+    res.json({ 
+      authenticated: true, 
+      admin: {
+        username: session.username,
+        email: session.email
+      }
+    });
+  } catch (error) {
+    console.error('Admin auth check error:', error);
+    res.json({ authenticated: false });
+  }
+});
+
+// Admin API Routes (Requires admin authentication)
+
+// Admin authentication middleware
+async function authenticateAdmin(req, res, next) {
+  try {
+    const sessionToken = req.cookies.adminSessionToken;
+    
+    if (!sessionToken) {
+      return res.status(401).json({ authenticated: false, message: 'Admin authentication required' });
+    }
+
+    if (isDatabaseAvailable) {
+      const session = await adminOperations.findSession(sessionToken);
+      if (!session) {
+        return res.status(401).json({ authenticated: false, message: 'Invalid admin session' });
+      }
+      
+      req.admin = {
+        id: session.admin_id,
+        username: session.username,
+        email: session.email
+      };
+    } else {
+      return res.status(503).json({ authenticated: false, message: 'Database connection required' });
+    }
+    
+    next();
+  } catch (error) {
+    console.error('Admin authentication error:', error);
+    res.status(500).json({ authenticated: false, message: 'Admin authentication error' });
+  }
+}
+
+// Get admin dashboard statistics
+app.get('/api/admin/stats', authenticateAdmin, async (req, res) => {
+  try {
+    if (!isDatabaseAvailable) {
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Database connection required' 
+      });
+    }
+
+    const client = await require('./database').pool.connect();
+    
+    try {
+      // Get total users
+      const usersResult = await client.query('SELECT COUNT(*) as count FROM users');
+      const totalUsers = parseInt(usersResult.rows[0].count);
+
+      // Get total portfolio items
+      const portfolioResult = await client.query('SELECT COUNT(*) as count FROM portfolio');
+      const totalPortfolioItems = parseInt(portfolioResult.rows[0].count);
+
+      // Get total closed positions
+      const closedResult = await client.query('SELECT COUNT(*) as count FROM closed_positions');
+      const totalClosedPositions = parseInt(closedResult.rows[0].count);
+
+      // Get active sessions (not expired)
+      const sessionsResult = await client.query('SELECT COUNT(*) as count FROM user_sessions WHERE expires_at > NOW()');
+      const activeSessions = parseInt(sessionsResult.rows[0].count);
+
+      res.json({
+        totalUsers,
+        totalPortfolioItems,
+        totalClosedPositions,
+        activeSessions
+      });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error fetching admin stats:', error);
+    res.status(500).json({ success: false, message: 'Error fetching statistics' });
+  }
+});
+
+// Get all users for admin
+app.get('/api/admin/users', authenticateAdmin, async (req, res) => {
+  try {
+    if (!isDatabaseAvailable) {
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Database connection required' 
+      });
+    }
+
+    const client = await require('./database').pool.connect();
+    
+    try {
+      const result = await client.query(`
+        SELECT id, username, email, phone, created_at, updated_at 
+        FROM users 
+        ORDER BY created_at DESC
+      `);
+      
+      res.json(result.rows);
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ success: false, message: 'Error fetching users' });
+  }
+});
+
+// Get user's portfolio data for admin
+app.get('/api/admin/users/:userId/portfolio', authenticateAdmin, async (req, res) => {
+  try {
+    if (!isDatabaseAvailable) {
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Database connection required' 
+      });
+    }
+
+    const userId = parseInt(req.params.userId);
+    const portfolio = await portfolioOperations.getAll(userId);
+    res.json(portfolio);
+  } catch (error) {
+    console.error('Error fetching user portfolio:', error);
+    res.status(500).json({ success: false, message: 'Error fetching portfolio data' });
+  }
+});
+
+// Get user's closed positions for admin
+app.get('/api/admin/users/:userId/closed-positions', authenticateAdmin, async (req, res) => {
+  try {
+    if (!isDatabaseAvailable) {
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Database connection required' 
+      });
+    }
+
+    const userId = parseInt(req.params.userId);
+    const closedPositions = await closedPositionsOperations.getAll(userId);
+    res.json(closedPositions);
+  } catch (error) {
+    console.error('Error fetching user closed positions:', error);
+    res.status(500).json({ success: false, message: 'Error fetching closed positions' });
+  }
+});
+
+// Delete portfolio item for admin
+app.delete('/api/admin/portfolio/:itemId', authenticateAdmin, async (req, res) => {
+  try {
+    if (!isDatabaseAvailable) {
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Database connection required' 
+      });
+    }
+
+    const itemId = parseInt(req.params.itemId);
+    const client = await require('./database').pool.connect();
+    
+    try {
+      await client.query('DELETE FROM portfolio WHERE id = $1', [itemId]);
+      res.json({ success: true, message: 'Portfolio item deleted successfully' });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error deleting portfolio item:', error);
+    res.status(500).json({ success: false, message: 'Error deleting portfolio item' });
+  }
+});
+
+// Delete closed position for admin
+app.delete('/api/admin/closed-positions/:itemId', authenticateAdmin, async (req, res) => {
+  try {
+    if (!isDatabaseAvailable) {
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Database connection required' 
+      });
+    }
+
+    const itemId = parseInt(req.params.itemId);
+    const client = await require('./database').pool.connect();
+    
+    try {
+      await client.query('DELETE FROM closed_positions WHERE id = $1', [itemId]);
+      res.json({ success: true, message: 'Closed position deleted successfully' });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error deleting closed position:', error);
+    res.status(500).json({ success: false, message: 'Error deleting closed position' });
+  }
+});
+
+// Delete user and all associated data for admin
+app.delete('/api/admin/users/:userId', authenticateAdmin, async (req, res) => {
+  try {
+    if (!isDatabaseAvailable) {
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Database connection required' 
+      });
+    }
+
+    const userId = parseInt(req.params.userId);
+    const client = await require('./database').pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+      
+      // Delete user sessions
+      await client.query('DELETE FROM user_sessions WHERE user_id = $1', [userId]);
+      
+      // Delete portfolio data
+      await client.query('DELETE FROM portfolio WHERE user_id = $1', [userId]);
+      
+      // Delete closed positions
+      await client.query('DELETE FROM closed_positions WHERE user_id = $1', [userId]);
+      
+      // Delete user
+      await client.query('DELETE FROM users WHERE id = $1', [userId]);
+      
+      await client.query('COMMIT');
+      res.json({ success: true, message: 'User and all associated data deleted successfully' });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ success: false, message: 'Error deleting user' });
+  }
+});
+
 // Catch-all route for any unmatched routes - serve index.html for SPA behavior
 app.get('*', (req, res) => {
   const timestamp = new Date().toISOString();
@@ -590,64 +1056,38 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Ensure data directory exists
-async function ensureDataDirectory() {
-    try {
-        await fs.mkdir(path.join(__dirname, 'data'), { recursive: true });
-    } catch (error) {
-        console.log('Data directory already exists or error creating:', error.message);
-    }
-}
-
-// Initialize data files if they don't exist
-async function initializeDataFiles() {
-    try {
-        await fs.access(PORTFOLIO_FILE);
-    } catch (error) {
-        await fs.writeFile(PORTFOLIO_FILE, JSON.stringify([], null, 2));
-        console.log('Created portfolio.json file');
-    }
-
-    try {
-        await fs.access(CLOSED_POSITIONS_FILE);
-    } catch (error) {
-        await fs.writeFile(CLOSED_POSITIONS_FILE, JSON.stringify([], null, 2));
-        console.log('Created closed-positions.json file');
-    }
-}
-
 // Start server
 async function startServer() {
   try {
-    // Ensure data directory and files exist for fallback
-    await ensureDataDirectory();
-    await initializeDataFiles();
-    
     // Test database connection
     console.log('🔍 Testing database connection...');
     const isConnected = await testConnection();
     isDatabaseAvailable = isConnected;
     
     if (!isConnected) {
-      console.log('⚠️  Database not connected - running in fallback mode');
-      console.log('💡 Make sure to set DATABASE_URL environment variable for production');
+      console.log('❌ Database not connected - application requires database');
+      console.log('💡 Please set DATABASE_URL environment variable and restart');
+      console.log('🚫 Server will start but API endpoints will return 503 errors');
     } else {
       // Initialize database tables
       console.log('🏗️  Initializing database tables...');
       await initializeDatabase();
       
-      // Migrate existing JSON data if database is available
-      await migrateJsonToDatabase();
+      // Create default admin user if none exists
+      await createDefaultAdmin();
+      
+      console.log('✅ Database ready for fresh data - no migration performed');
     }
     
     app.listen(PORT, () => {
       console.log(`🚀 Indian Stock Portfolio Tracker running on http://localhost:${PORT}`);
-      console.log(`📊 Using ${isConnected ? 'PostgreSQL database' : 'JSON files (fallback mode)'} for data storage`);
+      console.log(`📊 Using ${isConnected ? 'PostgreSQL database' : 'DATABASE REQUIRED'} for data storage`);
       console.log(`🌐 Health check available at: http://localhost:${PORT}/health`);
       console.log(`🔍 Database status at: http://localhost:${PORT}/api/db-status`);
       
       if (!isConnected) {
         console.log('');
+        console.log('⚠️  IMPORTANT: Database connection required for full functionality');
         console.log('📝 To enable database storage:');
         console.log('   1. Set up a PostgreSQL database');
         console.log('   2. Set DATABASE_URL environment variable');

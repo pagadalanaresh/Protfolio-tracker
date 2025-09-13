@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Portal - Portfolio Tracker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .admin-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            width: 95%;
+            max-width: 1200px;
+            min-height: 80vh;
+        }
+
+        .admin-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .admin-header h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .admin-header p {
+            opacity: 0.9;
+        }
+
+        .login-section {
+            padding: 40px;
+            text-align: center;
+        }
+
+        .login-form {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .login-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .admin-content {
+            padding: 20px;
+            display: none;
+        }
+
+        .admin-nav {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .nav-btn {
+            padding: 10px 20px;
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .nav-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .nav-btn:hover {
+            background: #e2e8f0;
+        }
+
+        .nav-btn.active:hover {
+            background: #5a67d8;
+        }
+
+        .content-section {
+            display: none;
+        }
+
+        .content-section.active {
+            display: block;
+        }
+
+        .users-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .user-card {
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .user-card:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+
+        .user-card.selected {
+            border-color: #667eea;
+            background: #edf2f7;
+        }
+
+        .user-card h3 {
+            color: #2d3748;
+            margin-bottom: 10px;
+        }
+
+        .user-card p {
+            color: #718096;
+            margin-bottom: 5px;
+        }
+
+        .data-section {
+            margin-top: 30px;
+        }
+
+        .data-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .data-tab {
+            padding: 10px 20px;
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .data-tab.active {
+            background: #48bb78;
+            color: white;
+            border-color: #48bb78;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .data-table th {
+            background: #f7fafc;
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .data-table tr:hover {
+            background: #f7fafc;
+        }
+
+        .action-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-right: 5px;
+        }
+
+        .edit-btn {
+            background: #4299e1;
+            color: white;
+        }
+
+        .delete-btn {
+            background: #f56565;
+            color: white;
+        }
+
+        .add-btn {
+            background: #48bb78;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+
+        .error-message {
+            background: #fed7d7;
+            color: #c53030;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .success-message {
+            background: #c6f6d5;
+            color: #2f855a;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #718096;
+        }
+
+        .logout-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .logout-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .stat-card h3 {
+            font-size: 2rem;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .stat-card p {
+            color: #718096;
+        }
+
+        @media (max-width: 768px) {
+            .admin-container {
+                width: 100%;
+                margin: 10px;
+                min-height: 95vh;
+            }
+
+            .admin-nav {
+                flex-direction: column;
+            }
+
+            .users-list {
+                grid-template-columns: 1fr;
+            }
+
+            .data-tabs {
+                flex-direction: column;
+            }
+
+            .logout-btn {
+                position: relative;
+                top: auto;
+                right: auto;
+                margin-top: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-container">
+        <div class="admin-header">
+            <button class="logout-btn" onclick="adminPortal.logout()" style="display: none;">Logout</button>
+            <h1>🛡️ Admin Portal</h1>
+            <p>Portfolio Tracker Database Management</p>
+        </div>
+
+        <!-- Login Section -->
+        <div class="login-section" id="loginSection">
+            <div class="login-form">
+                <h2 style="margin-bottom: 30px; color: #4a5568;">Administrator Login</h2>
+                <div class="error-message" id="loginError"></div>
+                
+                <form onsubmit="adminPortal.login(event)">
+                    <div class="form-group">
+                        <label for="adminUsername">Username</label>
+                        <input type="text" id="adminUsername" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="adminPassword">Password</label>
+                        <input type="password" id="adminPassword" required>
+                    </div>
+                    <button type="submit" class="login-btn">Login to Admin Portal</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Admin Content -->
+        <div class="admin-content" id="adminContent">
+            <div class="admin-nav">
+                <button class="nav-btn active" onclick="adminPortal.showSection('dashboard')">Dashboard</button>
+                <button class="nav-btn" onclick="adminPortal.showSection('users')">User Management</button>
+                <button class="nav-btn" onclick="adminPortal.showSection('data')">Data Management</button>
+                <button class="nav-btn" onclick="adminPortal.showSection('logs')">System Logs</button>
+            </div>
+
+            <div class="error-message" id="adminError"></div>
+            <div class="success-message" id="adminSuccess"></div>
+
+            <!-- Dashboard Section -->
+            <div class="content-section active" id="dashboard">
+                <h2 style="margin-bottom: 20px;">📊 Dashboard</h2>
+                <div class="stats-grid" id="statsGrid">
+                    <div class="loading">Loading dashboard statistics...</div>
+                </div>
+            </div>
+
+            <!-- Users Section -->
+            <div class="content-section" id="users">
+                <h2 style="margin-bottom: 20px;">👥 User Management</h2>
+                <div class="users-list" id="usersList">
+                    <div class="loading">Loading users...</div>
+                </div>
+            </div>
+
+            <!-- Data Management Section -->
+            <div class="content-section" id="data">
+                <h2 style="margin-bottom: 20px;">📈 Data Management</h2>
+                <div id="selectedUserInfo" style="margin-bottom: 20px; padding: 15px; background: #f7fafc; border-radius: 8px; display: none;">
+                    <strong>Selected User:</strong> <span id="selectedUserName"></span>
+                </div>
+                
+                <div class="data-tabs">
+                    <button class="data-tab active" onclick="adminPortal.showDataTab('portfolio')">Portfolio Data</button>
+                    <button class="data-tab" onclick="adminPortal.showDataTab('closed')">Closed Positions</button>
+                </div>
+
+                <div id="portfolioData" class="data-content">
+                    <div class="loading">Select a user to view portfolio data</div>
+                </div>
+
+                <div id="closedData" class="data-content" style="display: none;">
+                    <div class="loading">Select a user to view closed positions</div>
+                </div>
+            </div>
+
+            <!-- Logs Section -->
+            <div class="content-section" id="logs">
+                <h2 style="margin-bottom: 20px;">📋 System Logs</h2>
+                <div style="background: #1a202c; color: #e2e8f0; padding: 20px; border-radius: 8px; font-family: monospace; height: 400px; overflow-y: auto;" id="systemLogs">
+                    <div class="loading" style="color: #e2e8f0;">Loading system logs...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const adminPortal = {
+            selectedUser: null,
+            currentDataTab: 'portfolio',
+
+            async login(event) {
+                event.preventDefault();
+                
+                const username = document.getElementById('adminUsername').value;
+                const password = document.getElementById('adminPassword').value;
+                const errorDiv = document.getElementById('loginError');
+
+                // Clear previous errors
+                errorDiv.style.display = 'none';
+
+                try {
+                    // First check if admin setup is required
+                    const setupResponse = await fetch('/api/admin/setup-required');
+                    const setupData = await setupResponse.json();
+                    
+                    if (setupData.setupRequired) {
+                        // No admin exists, create first admin
+                        const setupResult = await this.setupFirstAdmin(username, password);
+                        if (!setupResult) return;
+                    }
+
+                    // Attempt admin login
+                    const response = await fetch('/api/admin/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ username, password })
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        // Hide login section and show admin content
+                        document.getElementById('loginSection').style.display = 'none';
+                        document.getElementById('adminContent').style.display = 'block';
+                        document.querySelector('.logout-btn').style.display = 'block';
+                        
+                        // Load initial data
+                        await this.loadDashboard();
+                        await this.loadUsers();
+                    } else {
+                        errorDiv.textContent = result.message || 'Invalid username or password';
+                        errorDiv.style.display = 'block';
+                    }
+                } catch (error) {
+                    console.error('Login error:', error);
+                    errorDiv.textContent = 'Login failed. Please try again.';
+                    errorDiv.style.display = 'block';
+                }
+            },
+
+            async setupFirstAdmin(username, password) {
+                try {
+                    // Validate input for first admin setup
+                    if (!username || !password) {
+                        document.getElementById('loginError').textContent = 'Username and password are required';
+                        document.getElementById('loginError').style.display = 'block';
+                        return false;
+                    }
+
+                    if (password.length < 8) {
+                        document.getElementById('loginError').textContent = 'Password must be at least 8 characters long';
+                        document.getElementById('loginError').style.display = 'block';
+                        return false;
+                    }
+
+                    // Create first admin account
+                    const response = await fetch('/api/admin/setup', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ 
+                            username, 
+                            email: `${username}@admin.local`, // Default email
+                            password 
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        this.showSuccess('First admin account created successfully! Please login again.');
+                        return true;
+                    } else {
+                        document.getElementById('loginError').textContent = result.message || 'Failed to create admin account';
+                        document.getElementById('loginError').style.display = 'block';
+                        return false;
+                    }
+                } catch (error) {
+                    console.error('Admin setup error:', error);
+                    document.getElementById('loginError').textContent = 'Failed to create admin account';
+                    document.getElementById('loginError').style.display = 'block';
+                    return false;
+                }
+            },
+
+            async logout() {
+                try {
+                    // Call admin logout API
+                    await fetch('/api/admin/logout', {
+                        method: 'POST'
+                    });
+                } catch (error) {
+                    console.error('Logout error:', error);
+                }
+
+                // Always perform UI logout regardless of API response
+                document.getElementById('loginSection').style.display = 'block';
+                document.getElementById('adminContent').style.display = 'none';
+                document.querySelector('.logout-btn').style.display = 'none';
+                
+                // Clear form
+                document.getElementById('adminUsername').value = '';
+                document.getElementById('adminPassword').value = '';
+                
+                // Reset state
+                this.selectedUser = null;
+            },
+
+            showSection(sectionName) {
+                // Update nav buttons
+                document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+                event.target.classList.add('active');
+
+                // Show selected section
+                document.querySelectorAll('.content-section').forEach(section => section.classList.remove('active'));
+                document.getElementById(sectionName).classList.add('active');
+
+                // Load section-specific data
+                if (sectionName === 'dashboard') {
+                    this.loadDashboard();
+                } else if (sectionName === 'users') {
+                    this.loadUsers();
+                } else if (sectionName === 'logs') {
+                    this.loadLogs();
+                }
+            },
+
+            async loadDashboard() {
+                try {
+                    const response = await fetch('/api/admin/stats');
+                    if (response.ok) {
+                        const stats = await response.json();
+                        this.renderDashboard(stats);
+                    } else {
+                        throw new Error('Failed to load dashboard stats');
+                    }
+                } catch (error) {
+                    console.error('Error loading dashboard:', error);
+                    document.getElementById('statsGrid').innerHTML = '<div class="loading">Error loading dashboard statistics</div>';
+                }
+            },
+
+            renderDashboard(stats) {
+                const statsGrid = document.getElementById('statsGrid');
+                statsGrid.innerHTML = `
+                    <div class="stat-card">
+                        <h3>${stats.totalUsers || 0}</h3>
+                        <p>Total Users</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>${stats.totalPortfolioItems || 0}</h3>
+                        <p>Portfolio Items</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>${stats.totalClosedPositions || 0}</h3>
+                        <p>Closed Positions</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>${stats.activeSessions || 0}</h3>
+                        <p>Active Sessions</p>
+                    </div>
+                `;
+            },
+
+            async loadUsers() {
+                try {
+                    const response = await fetch('/api/admin/users');
+                    if (response.ok) {
+                        const users = await response.json();
+                        this.renderUsers(users);
+                    } else {
+                        throw new Error('Failed to load users');
+                    }
+                } catch (error) {
+                    console.error('Error loading users:', error);
+                    document.getElementById('usersList').innerHTML = '<div class="loading">Error loading users</div>';
+                }
+            },
+
+            renderUsers(users) {
+                const usersList = document.getElementById('usersList');
+                
+                if (users.length === 0) {
+                    usersList.innerHTML = '<div class="loading">No users found</div>';
+                    return;
+                }
+
+                usersList.innerHTML = users.map(user => `
+                    <div class="user-card" onclick="adminPortal.selectUser(${user.id}, '${user.username}')">
+                        <h3>${user.username}</h3>
+                        <p><strong>Email:</strong> ${user.email}</p>
+                        <p><strong>Phone:</strong> ${user.phone || 'N/A'}</p>
+                        <p><strong>Created:</strong> ${new Date(user.created_at).toLocaleDateString()}</p>
+                        <p><strong>Last Updated:</strong> ${new Date(user.updated_at).toLocaleDateString()}</p>
+                    </div>
+                `).join('');
+            },
+
+            selectUser(userId, username) {
+                this.selectedUser = { id: userId, username: username };
+                
+                // Update UI
+                document.querySelectorAll('.user-card').forEach(card => card.classList.remove('selected'));
+                event.target.closest('.user-card').classList.add('selected');
+                
+                // Show selected user info
+                document.getElementById('selectedUserInfo').style.display = 'block';
+                document.getElementById('selectedUserName').textContent = username;
+                
+                // Load user data
+                this.loadUserData();
+            },
+
+            async loadUserData() {
+                if (!this.selectedUser) return;
+
+                try {
+                    // Load portfolio data
+                    const portfolioResponse = await fetch(`/api/admin/users/${this.selectedUser.id}/portfolio`);
+                    if (portfolioResponse.ok) {
+                        const portfolio = await portfolioResponse.json();
+                        this.renderPortfolioData(portfolio);
+                    }
+
+                    // Load closed positions
+                    const closedResponse = await fetch(`/api/admin/users/${this.selectedUser.id}/closed-positions`);
+                    if (closedResponse.ok) {
+                        const closedPositions = await closedResponse.json();
+                        this.renderClosedData(closedPositions);
+                    }
+                } catch (error) {
+                    console.error('Error loading user data:', error);
+                    this.showError('Error loading user data');
+                }
+            },
+
+            renderPortfolioData(portfolio) {
+                const portfolioDiv = document.getElementById('portfolioData');
+                
+                if (portfolio.length === 0) {
+                    portfolioDiv.innerHTML = '<div class="loading">No portfolio data found for this user</div>';
+                    return;
+                }
+
+                portfolioDiv.innerHTML = `
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Ticker</th>
+                                <th>Name</th>
+                                <th>Quantity</th>
+                                <th>Buy Price</th>
+                                <th>Current Price</th>
+                                <th>Invested</th>
+                                <th>Current Value</th>
+                                <th>P&L</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${portfolio.map(item => `
+                                <tr>
+                                    <td>${item.ticker}</td>
+                                    <td>${item.name}</td>
+                                    <td>${item.quantity}</td>
+                                    <td>₹${item.buyPrice?.toFixed(2) || 'N/A'}</td>
+                                    <td>₹${item.currentPrice?.toFixed(2) || 'N/A'}</td>
+                                    <td>₹${item.invested?.toFixed(2) || 'N/A'}</td>
+                                    <td>₹${item.currentValue?.toFixed(2) || 'N/A'}</td>
+                                    <td class="${(item.pl || 0) >= 0 ? 'positive' : 'negative'}">₹${item.pl?.toFixed(2) || 'N/A'}</td>
+                                    <td>
+                                        <button class="action-btn delete-btn" onclick="adminPortal.deletePortfolioItem(${item.id})">Delete</button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            },
+
+            renderClosedData(closedPositions) {
+                const closedDiv = document.getElementById('closedData');
+                
+                if (closedPositions.length === 0) {
+                    closedDiv.innerHTML = '<div class="loading">No closed positions found for this user</div>';
+                    return;
+                }
+
+                closedDiv.innerHTML = `
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Ticker</th>
+                                <th>Name</th>
+                                <th>Quantity</th>
+                                <th>Buy Price</th>
+                                <th>Close Price</th>
+                                <th>Final P&L</th>
+                                <th>Closed Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${closedPositions.map(item => `
+                                <tr>
+                                    <td>${item.ticker}</td>
+                                    <td>${item.name}</td>
+                                    <td>${item.quantity}</td>
+                                    <td>₹${item.buyPrice?.toFixed(2) || 'N/A'}</td>
+                                    <td>₹${item.closePrice?.toFixed(2) || 'N/A'}</td>
+                                    <td class="${(item.finalPL || 0) >= 0 ? 'positive' : 'negative'}">₹${item.finalPL?.toFixed(2) || 'N/A'}</td>
+                                    <td>${new Date(item.closedDate).toLocaleDateString()}</td>
+                                    <td>
+                                        <button class="action-btn delete-btn" onclick="adminPortal.deleteClosedPosition(${item.id})">Delete</button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            },
+
+            showDataTab(tabName) {
+                // Update tab buttons
+                document.querySelectorAll('.data-tab').forEach(tab => tab.classList.remove('active'));
+                event.target.classList.add('active');
+
+                // Show selected data
+                document.getElementById('portfolioData').style.display = tabName === 'portfolio' ? 'block' : 'none';
+                document.getElementById('closedData').style.display = tabName === 'closed' ? 'block' : 'none';
+                
+                this.currentDataTab = tabName;
+            },
+
+            async deletePortfolioItem(itemId) {
+                if (!confirm('Are you sure you want to delete this portfolio item?')) return;
+
+                try {
+                    const response = await fetch(`/api/admin/portfolio/${itemId}`, {
+                        method: 'DELETE'
+                    });
+
+                    if (response.ok) {
+                        this.showSuccess('Portfolio item deleted successfully');
+                        this.loadUserData(); // Reload data
+                    } else {
+                        throw new Error('Failed to delete portfolio item');
+                    }
+                } catch (error) {
+                    console.error('Error deleting portfolio item:', error);
+                    this.showError('Error deleting portfolio item');
+                }
+            },
+
+            async deleteClosedPosition(itemId) {
+                if (!confirm('Are you sure you want to delete this closed position?')) return;
+
+                try {
+                    const response = await fetch(`/api/admin/closed-positions/${itemId}`, {
+                        method: 'DELETE'
+                    });
+
+                    if (response.ok) {
+                        this.showSuccess('Closed position deleted successfully');
+                        this.loadUserData(); // Reload data
+                    } else {
+                        throw new Error('Failed to delete closed position');
+                    }
+                } catch (error) {
+                    console.error('Error deleting closed position:', error);
+                    this.showError('Error deleting closed position');
+                }
+            },
+
+            async loadLogs() {
+                const logsDiv = document.getElementById('systemLogs');
+                logsDiv.innerHTML = '<div class="loading" style="color: #e2e8f0;">Loading system logs...</div>';
+                
+                // Simulate loading logs (in a real implementation, you'd fetch from server)
+                setTimeout(() => {
+                    logsDiv.innerHTML = `
+                        <div>[${new Date().toISOString()}] INFO: Admin portal accessed by naresh</div>
+                        <div>[${new Date().toISOString()}] INFO: Database connection established</div>
+                        <div>[${new Date().toISOString()}] INFO: User data loaded successfully</div>
+                        <div style="color: #fbb6ce;">[${new Date().toISOString()}] WARN: High memory usage detected</div>
+                        <div style="color: #fed7d7;">[${new Date().toISOString()}] ERROR: Failed API request from unknown IP</div>
+                        <div>[${new Date().toISOString()}] INFO: Portfolio data updated for user ID: 123</div>
+                        <div>[${new Date().toISOString()}] INFO: Session cleanup completed</div>
+                    `;
+                }, 1000);
+            },
+
+            showError(message) {
+                const errorDiv = document.getElementById('adminError');
+                errorDiv.textContent = message;
+                errorDiv.style.display = 'block';
+                setTimeout(() => {
+                    errorDiv.style.display = 'none';
+                }, 5000);
+            },
+
+            showSuccess(message) {
+                const successDiv = document.getElementById('adminSuccess');
+                successDiv.textContent = message;
+                successDiv.style.display = 'block';
+                setTimeout(() => {
+                    successDiv.style.display = 'none';
+                }, 5000);
+            }
+        };
+
+        // Add CSS for positive/negative values
+        const style = document.createElement('style');
+        style.textContent = `
+            .positive { color: #38a169; font-weight: 600; }
+            .negative { color: #e53e3e; font-weight: 600; }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>

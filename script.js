@@ -93,9 +93,10 @@ class PortfolioTracker {
                 return; // Will redirect to auth page
             }
         } else {
-            // Database not available, run in fallback mode without authentication
-            console.log('Running in fallback mode - authentication bypassed');
-            this.authenticated = true; // Allow access without authentication
+            // Database not available - application requires database
+            console.log('Database not available - redirecting to auth page');
+            window.location.href = '/auth.html';
+            return;
         }
 
         this.bindEvents();

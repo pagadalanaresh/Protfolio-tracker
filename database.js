@@ -103,6 +103,30 @@ async function initializeDatabase() {
       )
     `);
 
+    // Create admin table for admin authentication
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS admins (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(50) UNIQUE NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create admin sessions table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS admin_sessions (
+        id SERIAL PRIMARY KEY,
+        admin_id INTEGER REFERENCES admins(id) ON DELETE CASCADE,
+        session_token VARCHAR(255) UNIQUE NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     console.log('✅ Database tables initialized successfully');
   } catch (error) {
     console.error('❌ Error initializing database:', error.message);
@@ -336,11 +360,139 @@ const closedPositionsOperations = {
   }
 };
 
+// Admin authentication operations
+const adminOperations = {
+  // Create new admin
+  async createAdmin(username, email, passwordHash) {
+    const client = await pool.connect();
+    try {
+      const result = await client.query(`
+        INSERT INTO admins (username, email, password_hash)
+        VALUES ($1, $2, $3)
+        RETURNING id, username, email, is_active, created_at
+      `, [username, email, passwordHash]);
+      return result.rows[0];
+    } finally {
+      client.release();
+    }
+  },
+
+  // Find admin by username
+  async findByUsername(username) {
+    const client = await pool.connect();
+    try {
+      const result = await client.query('SELECT * FROM admins WHERE username = $1 AND is_active = true', [username]);
+      return result.rows[0] || null;
+    } finally {
+      client.release();
+    }
+  },
+
+  // Find admin by email
+  async findByEmail(email) {
+    const client = await pool.connect();
+    try {
+      const result = await client.query('SELECT * FROM admins WHERE email = $1 AND is_active = true', [email]);
+      return result.rows[0] || null;
+    } finally {
+      client.release();
+    }
+  },
+
+  // Create admin session
+  async createSession(adminId, sessionToken, expiresAt) {
+    const client = await pool.connect();
+    try {
+      await client.query(`
+        INSERT INTO admin_sessions (admin_id, session_token, expires_at)
+        VALUES ($1, $2, $3)
+      `, [adminId, sessionToken, expiresAt]);
+    } finally {
+      client.release();
+    }
+  },
+
+  // Find admin session
+  async findSession(sessionToken) {
+    const client = await pool.connect();
+    try {
+      const result = await client.query(`
+        SELECT s.*, a.username, a.email, a.is_active
+        FROM admin_sessions s 
+        JOIN admins a ON s.admin_id = a.id 
+        WHERE s.session_token = $1 AND s.expires_at > NOW() AND a.is_active = true
+      `, [sessionToken]);
+      return result.rows[0] || null;
+    } finally {
+      client.release();
+    }
+  },
+
+  // Delete admin session
+  async deleteSession(sessionToken) {
+    const client = await pool.connect();
+    try {
+      await client.query('DELETE FROM admin_sessions WHERE session_token = $1', [sessionToken]);
+    } finally {
+      client.release();
+    }
+  },
+
+  // Clean expired admin sessions
+  async cleanExpiredSessions() {
+    const client = await pool.connect();
+    try {
+      await client.query('DELETE FROM admin_sessions WHERE expires_at <= NOW()');
+    } finally {
+      client.release();
+    }
+  },
+
+  // Get all admins
+  async getAllAdmins() {
+    const client = await pool.connect();
+    try {
+      const result = await client.query(`
+        SELECT id, username, email, is_active, created_at, updated_at 
+        FROM admins 
+        ORDER BY created_at DESC
+      `);
+      return result.rows;
+    } finally {
+      client.release();
+    }
+  },
+
+  // Check if any admin exists
+  async hasAnyAdmin() {
+    const client = await pool.connect();
+    try {
+      const result = await client.query('SELECT COUNT(*) as count FROM admins WHERE is_active = true');
+      return parseInt(result.rows[0].count) > 0;
+    } finally {
+      client.release();
+    }
+  },
+
+  // Deactivate admin
+  async deactivateAdmin(adminId) {
+    const client = await pool.connect();
+    try {
+      await client.query('UPDATE admins SET is_active = false, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [adminId]);
+      // Also delete all sessions for this admin
+      await client.query('DELETE FROM admin_sessions WHERE admin_id = $1', [adminId]);
+    } finally {
+      client.release();
+    }
+  }
+};
+
 module.exports = {
   pool,
   testConnection,
   initializeDatabase,
   userOperations,
   portfolioOperations,
-  closedPositionsOperations
+  closedPositionsOperations,
+  adminOperations
 };
