@@ -41,7 +41,7 @@ async function initializeDatabase() {
     // Create portfolio table with user_id foreign key
     await client.query(`
       CREATE TABLE IF NOT EXISTS portfolio (
-        id BIGINT,
+        id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         ticker VARCHAR(50) NOT NULL,
         name VARCHAR(255) NOT NULL,
@@ -61,14 +61,14 @@ async function initializeDatabase() {
         position VARCHAR(20),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id, user_id)
+        UNIQUE(user_id, ticker)
       )
     `);
 
     // Create closed_positions table with user_id foreign key
     await client.query(`
       CREATE TABLE IF NOT EXISTS closed_positions (
-        id BIGINT,
+        id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         ticker VARCHAR(50) NOT NULL,
         name VARCHAR(255) NOT NULL,
@@ -87,8 +87,7 @@ async function initializeDatabase() {
         final_pl_percent DECIMAL(8,4) NOT NULL,
         closed_date DATE NOT NULL,
         holding_period VARCHAR(50),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id, user_id)
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
@@ -265,16 +264,33 @@ const portfolioOperations = {
       // Clear existing data for this user
       await client.query('DELETE FROM portfolio WHERE user_id = $1', [userId]);
       
-      // Insert new data
+      // Insert new data (let database auto-generate IDs)
       for (const item of portfolioData) {
         await client.query(`
           INSERT INTO portfolio (
-            id, user_id, ticker, name, buy_price, current_price, quantity, invested, 
+            user_id, ticker, name, buy_price, current_price, quantity, invested, 
             current_value, purchase_date, last_updated, pl, pl_percent, 
             day_change, day_change_percent, target_price, stop_loss, position
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+          ON CONFLICT (user_id, ticker) DO UPDATE SET
+            name = EXCLUDED.name,
+            buy_price = EXCLUDED.buy_price,
+            current_price = EXCLUDED.current_price,
+            quantity = EXCLUDED.quantity,
+            invested = EXCLUDED.invested,
+            current_value = EXCLUDED.current_value,
+            purchase_date = EXCLUDED.purchase_date,
+            last_updated = EXCLUDED.last_updated,
+            pl = EXCLUDED.pl,
+            pl_percent = EXCLUDED.pl_percent,
+            day_change = EXCLUDED.day_change,
+            day_change_percent = EXCLUDED.day_change_percent,
+            target_price = EXCLUDED.target_price,
+            stop_loss = EXCLUDED.stop_loss,
+            position = EXCLUDED.position,
+            updated_at = CURRENT_TIMESTAMP
         `, [
-          item.id, userId, item.ticker, item.name, item.buyPrice, item.currentPrice,
+          userId, item.ticker, item.name, item.buyPrice, item.currentPrice,
           item.quantity, item.invested, item.currentValue, item.purchaseDate,
           item.lastUpdated, item.pl, item.plPercent, item.dayChange,
           item.dayChangePercent, item.targetPrice, item.stopLoss, item.position
@@ -332,17 +348,17 @@ const closedPositionsOperations = {
       // Clear existing data for this user
       await client.query('DELETE FROM closed_positions WHERE user_id = $1', [userId]);
       
-      // Insert new data
+      // Insert new data (let database auto-generate IDs)
       for (const item of closedPositionsData) {
         await client.query(`
           INSERT INTO closed_positions (
-            id, user_id, ticker, name, buy_price, current_price, quantity, invested,
+            user_id, ticker, name, buy_price, current_price, quantity, invested,
             current_value, purchase_date, last_updated, pl, pl_percent,
             close_price, close_value, final_pl, final_pl_percent,
             closed_date, holding_period
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         `, [
-          item.id, userId, item.ticker, item.name, item.buyPrice, item.currentPrice,
+          userId, item.ticker, item.name, item.buyPrice, item.currentPrice,
           item.quantity, item.invested, item.currentValue, item.purchaseDate,
           item.lastUpdated, item.pl, item.plPercent, item.closePrice,
           item.closeValue, item.finalPL, item.finalPLPercent, item.closedDate,

@@ -156,6 +156,10 @@
             padding: 20px;
             cursor: pointer;
             transition: all 0.3s ease;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
         }
 
         .user-card:hover {
@@ -170,12 +174,42 @@
 
         .user-card h3 {
             color: #2d3748;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
+            font-size: 1.2rem;
+            font-weight: 700;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
         }
 
         .user-card p {
             color: #718096;
-            margin-bottom: 5px;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            line-height: 1.4;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .user-card p strong {
+            color: #4a5568;
+            font-weight: 600;
+            display: inline-block;
+            min-width: 70px;
+        }
+
+        .user-card-actions {
+            margin-top: 15px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .user-card-actions .action-btn {
+            flex: 1;
+            min-width: 80px;
+            text-align: center;
+            padding: 8px 12px;
+            font-size: 0.85rem;
         }
 
         .data-section {
@@ -1022,14 +1056,16 @@
 
                 usersList.innerHTML = users.map(user => `
                     <div class="user-card" onclick="adminPortal.selectUser(${user.id}, '${user.username}')">
-                        <h3>${user.username}</h3>
-                        <p><strong>Email:</strong> ${user.email}</p>
-                        <p><strong>Phone:</strong> ${user.phone || 'N/A'}</p>
-                        <p><strong>Created:</strong> ${new Date(user.created_at).toLocaleDateString()}</p>
-                        <p><strong>Last Updated:</strong> ${new Date(user.updated_at).toLocaleDateString()}</p>
-                        <div style="margin-top: 15px; display: flex; gap: 10px;">
+                        <div>
+                            <h3>${user.username}</h3>
+                            <p><strong>Email:</strong> ${user.email}</p>
+                            <p><strong>Phone:</strong> ${user.phone || 'N/A'}</p>
+                            <p><strong>Created:</strong> ${new Date(user.created_at).toLocaleDateString()}</p>
+                            <p><strong>Updated:</strong> ${new Date(user.updated_at).toLocaleDateString()}</p>
+                        </div>
+                        <div class="user-card-actions">
                             <button class="action-btn edit-btn" onclick="event.stopPropagation(); adminPortal.editUser(${user.id}, '${user.username}', '${user.email}', '${user.phone || ''}')">Edit</button>
-                            <button class="action-btn delete-btn" onclick="event.stopPropagation(); adminPortal.deleteUser(${user.id}, '${user.username}')">Delete User</button>
+                            <button class="action-btn delete-btn" onclick="event.stopPropagation(); adminPortal.deleteUser(${user.id}, '${user.username}')">Delete</button>
                         </div>
                     </div>
                 `).join('');

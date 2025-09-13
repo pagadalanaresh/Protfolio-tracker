@@ -147,6 +147,240 @@ class PortfolioTracker {
             e.preventDefault();
             this.addStock();
         });
+
+        // Add autocomplete functionality to ticker input
+        this.setupStockAutocomplete();
+    }
+
+    setupStockAutocomplete() {
+        const tickerInput = document.getElementById('ticker');
+        let autocompleteTimeout;
+        let currentSuggestions = [];
+
+        // Create autocomplete dropdown
+        const dropdown = document.createElement('div');
+        dropdown.id = 'stockAutocomplete';
+        dropdown.style.cssText = `
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        `;
+
+        // Make ticker input container relative
+        tickerInput.parentElement.style.position = 'relative';
+        tickerInput.parentElement.appendChild(dropdown);
+
+        // Add input event listener
+        tickerInput.addEventListener('input', (e) => {
+            const query = e.target.value.trim().toUpperCase();
+            
+            // Clear previous timeout
+            if (autocompleteTimeout) {
+                clearTimeout(autocompleteTimeout);
+            }
+
+            if (query.length >= 3) {
+                // Show loading in dropdown
+                dropdown.innerHTML = '<div style="padding: 10px; color: #718096; text-align: center;">Searching stocks...</div>';
+                dropdown.style.display = 'block';
+
+                // Debounce the search
+                autocompleteTimeout = setTimeout(async () => {
+                    try {
+                        const suggestions = await this.searchStocks(query);
+                        this.showStockSuggestions(dropdown, suggestions, tickerInput);
+                    } catch (error) {
+                        console.error('Error searching stocks:', error);
+                        dropdown.innerHTML = '<div style="padding: 10px; color: #e53e3e; text-align: center;">Error searching stocks</div>';
+                    }
+                }, 300);
+            } else {
+                dropdown.style.display = 'none';
+            }
+        });
+
+        // Hide dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!tickerInput.parentElement.contains(e.target)) {
+                dropdown.style.display = 'none';
+            }
+        });
+
+        // Handle keyboard navigation
+        tickerInput.addEventListener('keydown', (e) => {
+            const items = dropdown.querySelectorAll('.autocomplete-item');
+            const activeItem = dropdown.querySelector('.autocomplete-item.active');
+            let activeIndex = Array.from(items).indexOf(activeItem);
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (activeIndex < items.length - 1) {
+                    if (activeItem) activeItem.classList.remove('active');
+                    items[activeIndex + 1].classList.add('active');
+                }
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (activeIndex > 0) {
+                    if (activeItem) activeItem.classList.remove('active');
+                    items[activeIndex - 1].classList.add('active');
+                }
+            } else if (e.key === 'Enter' && activeItem) {
+                e.preventDefault();
+                activeItem.click();
+            } else if (e.key === 'Escape') {
+                dropdown.style.display = 'none';
+            }
+        });
+    }
+
+    async searchStocks(query) {
+        try {
+            // Use Yahoo Finance search API
+            const proxyUrl = 'https://api.allorigins.win/raw?url=';
+            const searchUrl = `https://query1.finance.yahoo.com/v1/finance/search?q=${query}&quotesCount=10&newsCount=0`;
+            const fullUrl = proxyUrl + encodeURIComponent(searchUrl);
+            
+            const response = await fetch(fullUrl);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.quotes && data.quotes.length > 0) {
+                // Filter for NSE stocks (ending with .NS) and format results
+                return data.quotes
+                    .filter(quote => quote.symbol.endsWith('.NS'))
+                    .map(quote => ({
+                        symbol: quote.symbol.replace('.NS', ''),
+                        name: quote.longname || quote.shortname || quote.symbol,
+                        exchange: quote.exchange || 'NSE'
+                    }))
+                    .slice(0, 8); // Limit to 8 suggestions
+            }
+            
+            return [];
+        } catch (error) {
+            console.warn('Failed to search stocks via API, using fallback:', error);
+            
+            // Fallback to local stock database
+            return this.searchLocalStocks(query);
+        }
+    }
+
+    searchLocalStocks(query) {
+        const indianStocks = [
+            { symbol: 'RELIANCE', name: 'Reliance Industries Ltd', exchange: 'NSE' },
+            { symbol: 'TCS', name: 'Tata Consultancy Services Ltd', exchange: 'NSE' },
+            { symbol: 'INFY', name: 'Infosys Ltd', exchange: 'NSE' },
+            { symbol: 'HDFCBANK', name: 'HDFC Bank Ltd', exchange: 'NSE' },
+            { symbol: 'ICICIBANK', name: 'ICICI Bank Ltd', exchange: 'NSE' },
+            { symbol: 'HINDUNILVR', name: 'Hindustan Unilever Ltd', exchange: 'NSE' },
+            { symbol: 'ITC', name: 'ITC Ltd', exchange: 'NSE' },
+            { symbol: 'SBIN', name: 'State Bank of India', exchange: 'NSE' },
+            { symbol: 'BHARTIARTL', name: 'Bharti Airtel Ltd', exchange: 'NSE' },
+            { symbol: 'KOTAKBANK', name: 'Kotak Mahindra Bank Ltd', exchange: 'NSE' },
+            { symbol: 'LT', name: 'Larsen & Toubro Ltd', exchange: 'NSE' },
+            { symbol: 'ASIANPAINT', name: 'Asian Paints Ltd', exchange: 'NSE' },
+            { symbol: 'MARUTI', name: 'Maruti Suzuki India Ltd', exchange: 'NSE' },
+            { symbol: 'HCLTECH', name: 'HCL Technologies Ltd', exchange: 'NSE' },
+            { symbol: 'WIPRO', name: 'Wipro Ltd', exchange: 'NSE' },
+            { symbol: 'TECHM', name: 'Tech Mahindra Ltd', exchange: 'NSE' },
+            { symbol: 'TITAN', name: 'Titan Company Ltd', exchange: 'NSE' },
+            { symbol: 'NESTLEIND', name: 'Nestle India Ltd', exchange: 'NSE' },
+            { symbol: 'POWERGRID', name: 'Power Grid Corporation of India Ltd', exchange: 'NSE' },
+            { symbol: 'NTPC', name: 'NTPC Ltd', exchange: 'NSE' },
+            { symbol: 'BAJFINANCE', name: 'Bajaj Finance Ltd', exchange: 'NSE' },
+            { symbol: 'AXISBANK', name: 'Axis Bank Ltd', exchange: 'NSE' },
+            { symbol: 'SUNPHARMA', name: 'Sun Pharmaceutical Industries Ltd', exchange: 'NSE' },
+            { symbol: 'ULTRACEMCO', name: 'UltraTech Cement Ltd', exchange: 'NSE' },
+            { symbol: 'ADANIPORTS', name: 'Adani Ports and Special Economic Zone Ltd', exchange: 'NSE' },
+            { symbol: 'TATAMOTORS', name: 'Tata Motors Ltd', exchange: 'NSE' },
+            { symbol: 'TATASTEEL', name: 'Tata Steel Ltd', exchange: 'NSE' },
+            { symbol: 'JSWSTEEL', name: 'JSW Steel Ltd', exchange: 'NSE' },
+            { symbol: 'HINDALCO', name: 'Hindalco Industries Ltd', exchange: 'NSE' },
+            { symbol: 'COALINDIA', name: 'Coal India Ltd', exchange: 'NSE' },
+            { symbol: 'ONGC', name: 'Oil and Natural Gas Corporation Ltd', exchange: 'NSE' },
+            { symbol: 'IOC', name: 'Indian Oil Corporation Ltd', exchange: 'NSE' },
+            { symbol: 'BPCL', name: 'Bharat Petroleum Corporation Ltd', exchange: 'NSE' },
+            { symbol: 'GRASIM', name: 'Grasim Industries Ltd', exchange: 'NSE' },
+            { symbol: 'CIPLA', name: 'Cipla Ltd', exchange: 'NSE' },
+            { symbol: 'DRREDDY', name: 'Dr. Reddys Laboratories Ltd', exchange: 'NSE' },
+            { symbol: 'BRITANNIA', name: 'Britannia Industries Ltd', exchange: 'NSE' },
+            { symbol: 'DIVISLAB', name: 'Divis Laboratories Ltd', exchange: 'NSE' },
+            { symbol: 'EICHERMOT', name: 'Eicher Motors Ltd', exchange: 'NSE' },
+            { symbol: 'HEROMOTOCO', name: 'Hero MotoCorp Ltd', exchange: 'NSE' },
+            { symbol: 'BAJAJ-AUTO', name: 'Bajaj Auto Ltd', exchange: 'NSE' }
+        ];
+
+        return indianStocks
+            .filter(stock => 
+                stock.symbol.includes(query) || 
+                stock.name.toUpperCase().includes(query)
+            )
+            .slice(0, 8);
+    }
+
+    showStockSuggestions(dropdown, suggestions, tickerInput) {
+        if (suggestions.length === 0) {
+            dropdown.innerHTML = '<div style="padding: 10px; color: #718096; text-align: center;">No stocks found</div>';
+            return;
+        }
+
+        dropdown.innerHTML = suggestions.map(stock => `
+            <div class="autocomplete-item" style="
+                padding: 12px;
+                cursor: pointer;
+                border-bottom: 1px solid #f1f5f9;
+                transition: background-color 0.2s ease;
+            " onmouseover="this.style.backgroundColor='#f8fafc'" 
+               onmouseout="this.style.backgroundColor='white'"
+               onclick="portfolioTracker.selectStock('${stock.symbol}', '${stock.name}')">
+                <div style="font-weight: 600; color: #2d3748; margin-bottom: 2px;">${stock.symbol}</div>
+                <div style="font-size: 0.85rem; color: #718096;">${stock.name}</div>
+                <div style="font-size: 0.75rem; color: #a0aec0;">${stock.exchange}</div>
+            </div>
+        `).join('');
+
+        // Add hover styles
+        const style = document.createElement('style');
+        style.textContent = `
+            .autocomplete-item:hover,
+            .autocomplete-item.active {
+                background-color: #f8fafc !important;
+            }
+            .autocomplete-item:last-child {
+                border-bottom: none;
+            }
+        `;
+        if (!document.getElementById('autocomplete-styles')) {
+            style.id = 'autocomplete-styles';
+            document.head.appendChild(style);
+        }
+    }
+
+    selectStock(symbol, name) {
+        // Fill the ticker input
+        document.getElementById('ticker').value = symbol;
+        
+        // Hide dropdown
+        document.getElementById('stockAutocomplete').style.display = 'none';
+        
+        // Focus on next input (buy price)
+        document.getElementById('buyPrice').focus();
+        
+        console.log(`Selected stock: ${symbol} - ${name}`);
     }
 
     async addStock() {
