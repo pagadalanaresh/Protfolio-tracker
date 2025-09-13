@@ -985,6 +985,54 @@ app.delete('/api/admin/closed-positions/:itemId', authenticateAdmin, async (req,
   }
 });
 
+// Update user information for admin
+app.put('/api/admin/users/:userId', authenticateAdmin, async (req, res) => {
+  try {
+    if (!isDatabaseAvailable) {
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Database connection required' 
+      });
+    }
+
+    const userId = parseInt(req.params.userId);
+    const { username, email, phone } = req.body;
+
+    // Validate input
+    if (!username || !email) {
+      return res.status(400).json({ success: false, message: 'Username and email are required' });
+    }
+
+    const client = await require('./database').pool.connect();
+    
+    try {
+      // Check if username or email already exists for other users
+      const existingUser = await client.query(
+        'SELECT id FROM users WHERE (username = $1 OR email = $2) AND id != $3', 
+        [username, email, userId]
+      );
+
+      if (existingUser.rows.length > 0) {
+        return res.status(400).json({ success: false, message: 'Username or email already exists' });
+      }
+
+      // Update user information
+      await client.query(`
+        UPDATE users 
+        SET username = $1, email = $2, phone = $3, updated_at = CURRENT_TIMESTAMP 
+        WHERE id = $4
+      `, [username, email, phone || null, userId]);
+
+      res.json({ success: true, message: 'User updated successfully' });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({ success: false, message: 'Error updating user' });
+  }
+});
+
 // Delete user and all associated data for admin
 app.delete('/api/admin/users/:userId', authenticateAdmin, async (req, res) => {
   try {
