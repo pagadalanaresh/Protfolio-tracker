@@ -899,6 +899,7 @@ app.get('/api/admin/users', authenticateAdmin, async (req, res) => {
 
 // Get user's portfolio data for admin
 app.get('/api/admin/users/:userId/portfolio', authenticateAdmin, async (req, res) => {
+  const timestamp = new Date().toISOString();
   try {
     if (!isDatabaseAvailable) {
       return res.status(503).json({ 
@@ -908,16 +909,26 @@ app.get('/api/admin/users/:userId/portfolio', authenticateAdmin, async (req, res
     }
 
     const userId = parseInt(req.params.userId);
+    console.log(`[${timestamp}] Admin requesting portfolio data for user ID: ${userId}, Admin: ${req.admin.username}`);
+
+    // Validate userId
+    if (isNaN(userId) || userId <= 0) {
+      console.log(`[${timestamp}] Invalid user ID: ${req.params.userId}`);
+      return res.status(400).json({ success: false, message: 'Invalid user ID' });
+    }
+
     const portfolio = await portfolioOperations.getAll(userId);
+    console.log(`[${timestamp}] Retrieved ${portfolio.length} portfolio items for user ID: ${userId}`);
     res.json(portfolio);
   } catch (error) {
-    console.error('Error fetching user portfolio:', error);
-    res.status(500).json({ success: false, message: 'Error fetching portfolio data' });
+    console.error(`[${timestamp}] Error fetching user portfolio:`, error);
+    res.status(500).json({ success: false, message: 'Error fetching portfolio data: ' + error.message });
   }
 });
 
 // Get user's closed positions for admin
 app.get('/api/admin/users/:userId/closed-positions', authenticateAdmin, async (req, res) => {
+  const timestamp = new Date().toISOString();
   try {
     if (!isDatabaseAvailable) {
       return res.status(503).json({ 
@@ -927,11 +938,20 @@ app.get('/api/admin/users/:userId/closed-positions', authenticateAdmin, async (r
     }
 
     const userId = parseInt(req.params.userId);
+    console.log(`[${timestamp}] Admin requesting closed positions for user ID: ${userId}, Admin: ${req.admin.username}`);
+
+    // Validate userId
+    if (isNaN(userId) || userId <= 0) {
+      console.log(`[${timestamp}] Invalid user ID: ${req.params.userId}`);
+      return res.status(400).json({ success: false, message: 'Invalid user ID' });
+    }
+
     const closedPositions = await closedPositionsOperations.getAll(userId);
+    console.log(`[${timestamp}] Retrieved ${closedPositions.length} closed positions for user ID: ${userId}`);
     res.json(closedPositions);
   } catch (error) {
-    console.error('Error fetching user closed positions:', error);
-    res.status(500).json({ success: false, message: 'Error fetching closed positions' });
+    console.error(`[${timestamp}] Error fetching user closed positions:`, error);
+    res.status(500).json({ success: false, message: 'Error fetching closed positions: ' + error.message });
   }
 });
 
@@ -1035,6 +1055,7 @@ app.put('/api/admin/users/:userId', authenticateAdmin, async (req, res) => {
 
 // Delete user and all associated data for admin
 app.delete('/api/admin/users/:userId', authenticateAdmin, async (req, res) => {
+  const timestamp = new Date().toISOString();
   try {
     if (!isDatabaseAvailable) {
       return res.status(503).json({ 
@@ -1044,34 +1065,151 @@ app.delete('/api/admin/users/:userId', authenticateAdmin, async (req, res) => {
     }
 
     const userId = parseInt(req.params.userId);
+    console.log(`[${timestamp}] Admin delete user request - User ID: ${userId}, Admin: ${req.admin.username}`);
+
+    // Validate userId
+    if (isNaN(userId) || userId <= 0) {
+      console.log(`[${timestamp}] Delete user failed - Invalid user ID: ${req.params.userId}`);
+      return res.status(400).json({ success: false, message: 'Invalid user ID' });
+    }
+
     const client = await require('./database').pool.connect();
     
     try {
       await client.query('BEGIN');
+      console.log(`[${timestamp}] Starting user deletion transaction for user ID: ${userId}`);
+      
+      // First check if user exists
+      const userCheck = await client.query('SELECT id, username FROM users WHERE id = $1', [userId]);
+      if (userCheck.rows.length === 0) {
+        console.log(`[${timestamp}] Delete user failed - User not found with ID: ${userId}`);
+        await client.query('ROLLBACK');
+        return res.status(404).json({ success: false, message: 'User not found' });
+      }
+
+      const userToDelete = userCheck.rows[0];
+      console.log(`[${timestamp}] Found user to delete: ${userToDelete.username} (ID: ${userId})`);
       
       // Delete user sessions
-      await client.query('DELETE FROM user_sessions WHERE user_id = $1', [userId]);
+      const sessionsResult = await client.query('DELETE FROM user_sessions WHERE user_id = $1', [userId]);
+      console.log(`[${timestamp}] Deleted ${sessionsResult.rowCount} user sessions`);
       
       // Delete portfolio data
-      await client.query('DELETE FROM portfolio WHERE user_id = $1', [userId]);
+      const portfolioResult = await client.query('DELETE FROM portfolio WHERE user_id = $1', [userId]);
+      console.log(`[${timestamp}] Deleted ${portfolioResult.rowCount} portfolio items`);
       
       // Delete closed positions
-      await client.query('DELETE FROM closed_positions WHERE user_id = $1', [userId]);
+      const closedResult = await client.query('DELETE FROM closed_positions WHERE user_id = $1', [userId]);
+      console.log(`[${timestamp}] Deleted ${closedResult.rowCount} closed positions`);
       
       // Delete user
-      await client.query('DELETE FROM users WHERE id = $1', [userId]);
+      const userResult = await client.query('DELETE FROM users WHERE id = $1', [userId]);
+      console.log(`[${timestamp}] Deleted ${userResult.rowCount} user record`);
       
       await client.query('COMMIT');
-      res.json({ success: true, message: 'User and all associated data deleted successfully' });
+      console.log(`[${timestamp}] User deletion transaction completed successfully`);
+      
+      res.json({ 
+        success: true, 
+        message: `User "${userToDelete.username}" and all associated data deleted successfully`,
+        deletedData: {
+          sessions: sessionsResult.rowCount,
+          portfolioItems: portfolioResult.rowCount,
+          closedPositions: closedResult.rowCount,
+          user: userResult.rowCount
+        }
+      });
     } catch (error) {
       await client.query('ROLLBACK');
+      console.log(`[${timestamp}] User deletion transaction rolled back due to error`);
       throw error;
     } finally {
       client.release();
     }
   } catch (error) {
-    console.error('Error deleting user:', error);
-    res.status(500).json({ success: false, message: 'Error deleting user' });
+    console.error(`[${timestamp}] Error deleting user:`, error);
+    res.status(500).json({ success: false, message: 'Error deleting user: ' + error.message });
+  }
+});
+
+// Clear entire database (DANGEROUS - requires admin authentication)
+app.post('/api/admin/clear-database', authenticateAdmin, async (req, res) => {
+  const timestamp = new Date().toISOString();
+  try {
+    if (!isDatabaseAvailable) {
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Database connection required' 
+      });
+    }
+
+    console.log(`[${timestamp}] ⚠️  CRITICAL: Database clear request by admin: ${req.admin.username}`);
+
+    const client = await require('./database').pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+      console.log(`[${timestamp}] Starting database clear transaction`);
+      
+      // Get counts before deletion for reporting
+      const userCountResult = await client.query('SELECT COUNT(*) as count FROM users');
+      const portfolioCountResult = await client.query('SELECT COUNT(*) as count FROM portfolio');
+      const closedCountResult = await client.query('SELECT COUNT(*) as count FROM closed_positions');
+      const sessionCountResult = await client.query('SELECT COUNT(*) as count FROM user_sessions');
+      const adminSessionCountResult = await client.query('SELECT COUNT(*) as count FROM admin_sessions');
+      
+      const beforeCounts = {
+        users: parseInt(userCountResult.rows[0].count),
+        portfolioItems: parseInt(portfolioCountResult.rows[0].count),
+        closedPositions: parseInt(closedCountResult.rows[0].count),
+        userSessions: parseInt(sessionCountResult.rows[0].count),
+        adminSessions: parseInt(adminSessionCountResult.rows[0].count)
+      };
+      
+      console.log(`[${timestamp}] Database contents before clearing:`, beforeCounts);
+      
+      // Clear all user sessions (but keep current admin session)
+      const currentAdminSession = req.cookies.adminSessionToken;
+      if (currentAdminSession) {
+        await client.query('DELETE FROM user_sessions');
+        await client.query('DELETE FROM admin_sessions WHERE session_token != $1', [currentAdminSession]);
+        console.log(`[${timestamp}] Cleared all sessions except current admin session`);
+      } else {
+        await client.query('DELETE FROM user_sessions');
+        await client.query('DELETE FROM admin_sessions');
+        console.log(`[${timestamp}] Cleared all sessions`);
+      }
+      
+      // Clear all portfolio data
+      await client.query('DELETE FROM portfolio');
+      console.log(`[${timestamp}] Cleared all portfolio data`);
+      
+      // Clear all closed positions
+      await client.query('DELETE FROM closed_positions');
+      console.log(`[${timestamp}] Cleared all closed positions`);
+      
+      // Clear all users
+      await client.query('DELETE FROM users');
+      console.log(`[${timestamp}] Cleared all users`);
+      
+      await client.query('COMMIT');
+      console.log(`[${timestamp}] ✅ Database clear transaction completed successfully`);
+      
+      res.json({ 
+        success: true, 
+        message: 'Database cleared successfully - all user data has been permanently deleted',
+        clearedData: beforeCounts
+      });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.log(`[${timestamp}] Database clear transaction rolled back due to error`);
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error(`[${timestamp}] ❌ Error clearing database:`, error);
+    res.status(500).json({ success: false, message: 'Error clearing database: ' + error.message });
   }
 });
 

@@ -397,30 +397,273 @@
             animation: spin 1s linear infinite;
         }
 
+        @media (max-width: 1024px) {
+            .admin-container {
+                width: 98%;
+                margin: 1%;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                gap: 15px;
+            }
+
+            .users-list {
+                grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+                gap: 15px;
+            }
+        }
+
         @media (max-width: 768px) {
             .admin-container {
                 width: 100%;
-                margin: 10px;
-                min-height: 95vh;
+                margin: 0;
+                min-height: 100vh;
+                border-radius: 0;
+            }
+
+            .admin-header {
+                padding: 15px;
+                position: relative;
+            }
+
+            .admin-header h1 {
+                font-size: 1.5rem;
+                margin-bottom: 5px;
+            }
+
+            .admin-content {
+                padding: 15px;
             }
 
             .admin-nav {
                 flex-direction: column;
+                gap: 8px;
+            }
+
+            .nav-btn {
+                padding: 12px 16px;
+                text-align: center;
+                font-size: 14px;
             }
 
             .users-list {
                 grid-template-columns: 1fr;
+                gap: 15px;
+            }
+
+            .user-card {
+                padding: 15px;
+            }
+
+            .user-card h3 {
+                font-size: 1.1rem;
+            }
+
+            .user-card p {
+                font-size: 0.9rem;
+                margin-bottom: 3px;
+            }
+
+            .user-card div {
+                flex-direction: column;
+                gap: 8px !important;
+            }
+
+            .action-btn {
+                width: 100%;
+                padding: 8px 12px;
+                margin-right: 0;
+                margin-bottom: 5px;
             }
 
             .data-tabs {
                 flex-direction: column;
+                gap: 8px;
+            }
+
+            .data-tab {
+                text-align: center;
+                padding: 12px 16px;
+            }
+
+            .data-table {
+                font-size: 0.85rem;
+                overflow-x: auto;
+                display: block;
+                white-space: nowrap;
+            }
+
+            .data-table thead,
+            .data-table tbody,
+            .data-table th,
+            .data-table td,
+            .data-table tr {
+                display: block;
+            }
+
+            .data-table thead tr {
+                position: absolute;
+                top: -9999px;
+                left: -9999px;
+            }
+
+            .data-table tr {
+                border: 1px solid #e2e8f0;
+                margin-bottom: 10px;
+                padding: 10px;
+                border-radius: 8px;
+                background: white;
+            }
+
+            .data-table td {
+                border: none;
+                position: relative;
+                padding: 8px 8px 8px 35%;
+                white-space: normal;
+                text-align: left;
+            }
+
+            .data-table td:before {
+                content: attr(data-label) ": ";
+                position: absolute;
+                left: 6px;
+                width: 30%;
+                padding-right: 10px;
+                white-space: nowrap;
+                font-weight: 600;
+                color: #4a5568;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+
+            .stat-card {
+                padding: 15px;
+            }
+
+            .stat-card h3 {
+                font-size: 1.5rem;
             }
 
             .logout-btn {
-                position: relative;
-                top: auto;
-                right: auto;
+                position: static;
                 margin-top: 10px;
+                width: auto;
+                display: inline-block;
+            }
+
+            .loading-content {
+                margin: 20px;
+                padding: 30px;
+            }
+
+            .loading-spinner {
+                width: 40px;
+                height: 40px;
+            }
+
+            .form-group input {
+                padding: 10px;
+                font-size: 16px; /* Prevents zoom on iOS */
+            }
+
+            .login-btn {
+                padding: 14px;
+                font-size: 16px;
+            }
+
+            /* Modal responsiveness */
+            #editUserModal > div {
+                margin: 20px;
+                padding: 20px;
+                max-width: none;
+                width: calc(100% - 40px);
+            }
+
+            /* Danger zone responsiveness */
+            .admin-container div[style*="background: #fed7d7"] {
+                margin-top: 20px !important;
+                padding: 15px !important;
+            }
+
+            .admin-container div[style*="background: #fed7d7"] button {
+                width: 100% !important;
+                padding: 12px !important;
+                font-size: 14px !important;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .admin-header h1 {
+                font-size: 1.3rem;
+            }
+
+            .admin-header p {
+                font-size: 0.9rem;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stat-card h3 {
+                font-size: 1.3rem;
+            }
+
+            .nav-btn {
+                padding: 10px 12px;
+                font-size: 13px;
+            }
+
+            .user-card {
+                padding: 12px;
+            }
+
+            .user-card h3 {
+                font-size: 1rem;
+            }
+
+            .user-card p {
+                font-size: 0.85rem;
+            }
+
+            .loading-content {
+                margin: 10px;
+                padding: 20px;
+            }
+
+            .loading-text {
+                font-size: 14px;
+            }
+
+            .loading-subtext {
+                font-size: 12px;
+            }
+        }
+
+        /* Touch-friendly improvements */
+        @media (hover: none) and (pointer: coarse) {
+            .nav-btn,
+            .action-btn,
+            .data-tab,
+            .user-card {
+                min-height: 44px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .user-card {
+                min-height: auto;
+                padding: 20px;
+            }
+
+            .action-btn {
+                min-height: 40px;
+                padding: 10px 15px;
             }
         }
     </style>
@@ -470,6 +713,18 @@
                 <h2 style="margin-bottom: 20px;">📊 Dashboard</h2>
                 <div class="stats-grid" id="statsGrid">
                     <div class="loading">Loading dashboard statistics...</div>
+                </div>
+                
+                <!-- Danger Zone -->
+                <div style="margin-top: 40px; padding: 20px; background: #fed7d7; border: 2px solid #f56565; border-radius: 10px;">
+                    <h3 style="color: #c53030; margin-bottom: 15px;">⚠️ Danger Zone</h3>
+                    <p style="color: #c53030; margin-bottom: 15px; font-weight: 600;">
+                        The following action will permanently delete ALL data from the database and cannot be undone!
+                    </p>
+                    <button onclick="adminPortal.clearDatabase()" 
+                            style="background: #f56565; color: white; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">
+                        🗑️ Clear Entire Database
+                    </button>
                 </div>
             </div>
 
@@ -798,23 +1053,45 @@
             async loadUserData() {
                 if (!this.selectedUser) return;
 
+                // Show loading state for both data sections
+                document.getElementById('portfolioData').innerHTML = '<div class="loading">Loading portfolio data...</div>';
+                document.getElementById('closedData').innerHTML = '<div class="loading">Loading closed positions...</div>';
+
                 try {
+                    console.log(`Loading data for user ID: ${this.selectedUser.id}, Username: ${this.selectedUser.username}`);
+                    
                     // Load portfolio data
                     const portfolioResponse = await fetch(`/api/admin/users/${this.selectedUser.id}/portfolio`);
+                    console.log(`Portfolio response status: ${portfolioResponse.status}`);
+                    
                     if (portfolioResponse.ok) {
                         const portfolio = await portfolioResponse.json();
+                        console.log(`Loaded ${portfolio.length} portfolio items for user ${this.selectedUser.username}`);
                         this.renderPortfolioData(portfolio);
+                    } else {
+                        const errorText = await portfolioResponse.text();
+                        console.error(`Portfolio request failed:`, errorText);
+                        document.getElementById('portfolioData').innerHTML = '<div class="loading">Error loading portfolio data</div>';
                     }
 
                     // Load closed positions
                     const closedResponse = await fetch(`/api/admin/users/${this.selectedUser.id}/closed-positions`);
+                    console.log(`Closed positions response status: ${closedResponse.status}`);
+                    
                     if (closedResponse.ok) {
                         const closedPositions = await closedResponse.json();
+                        console.log(`Loaded ${closedPositions.length} closed positions for user ${this.selectedUser.username}`);
                         this.renderClosedData(closedPositions);
+                    } else {
+                        const errorText = await closedResponse.text();
+                        console.error(`Closed positions request failed:`, errorText);
+                        document.getElementById('closedData').innerHTML = '<div class="loading">Error loading closed positions</div>';
                     }
                 } catch (error) {
                     console.error('Error loading user data:', error);
-                    this.showError('Error loading user data');
+                    this.showError(`Error loading user data: ${error.message}`);
+                    document.getElementById('portfolioData').innerHTML = '<div class="loading">Error loading portfolio data</div>';
+                    document.getElementById('closedData').innerHTML = '<div class="loading">Error loading closed positions</div>';
                 }
             },
 
@@ -844,15 +1121,15 @@
                         <tbody>
                             ${portfolio.map(item => `
                                 <tr>
-                                    <td>${item.ticker}</td>
-                                    <td>${item.name}</td>
-                                    <td>${item.quantity}</td>
-                                    <td>₹${item.buyPrice?.toFixed(2) || 'N/A'}</td>
-                                    <td>₹${item.currentPrice?.toFixed(2) || 'N/A'}</td>
-                                    <td>₹${item.invested?.toFixed(2) || 'N/A'}</td>
-                                    <td>₹${item.currentValue?.toFixed(2) || 'N/A'}</td>
-                                    <td class="${(item.pl || 0) >= 0 ? 'positive' : 'negative'}">₹${item.pl?.toFixed(2) || 'N/A'}</td>
-                                    <td>
+                                    <td data-label="Ticker">${item.ticker}</td>
+                                    <td data-label="Name">${item.name}</td>
+                                    <td data-label="Quantity">${item.quantity}</td>
+                                    <td data-label="Buy Price">₹${item.buyPrice?.toFixed(2) || 'N/A'}</td>
+                                    <td data-label="Current Price">₹${item.currentPrice?.toFixed(2) || 'N/A'}</td>
+                                    <td data-label="Invested">₹${item.invested?.toFixed(2) || 'N/A'}</td>
+                                    <td data-label="Current Value">₹${item.currentValue?.toFixed(2) || 'N/A'}</td>
+                                    <td data-label="P&L" class="${(item.pl || 0) >= 0 ? 'positive' : 'negative'}">₹${item.pl?.toFixed(2) || 'N/A'}</td>
+                                    <td data-label="Actions">
                                         <button class="action-btn delete-btn" onclick="adminPortal.deletePortfolioItem(${item.id})">Delete</button>
                                     </td>
                                 </tr>
@@ -887,14 +1164,14 @@
                         <tbody>
                             ${closedPositions.map(item => `
                                 <tr>
-                                    <td>${item.ticker}</td>
-                                    <td>${item.name}</td>
-                                    <td>${item.quantity}</td>
-                                    <td>₹${item.buyPrice?.toFixed(2) || 'N/A'}</td>
-                                    <td>₹${item.closePrice?.toFixed(2) || 'N/A'}</td>
-                                    <td class="${(item.finalPL || 0) >= 0 ? 'positive' : 'negative'}">₹${item.finalPL?.toFixed(2) || 'N/A'}</td>
-                                    <td>${new Date(item.closedDate).toLocaleDateString()}</td>
-                                    <td>
+                                    <td data-label="Ticker">${item.ticker}</td>
+                                    <td data-label="Name">${item.name}</td>
+                                    <td data-label="Quantity">${item.quantity}</td>
+                                    <td data-label="Buy Price">₹${item.buyPrice?.toFixed(2) || 'N/A'}</td>
+                                    <td data-label="Close Price">₹${item.closePrice?.toFixed(2) || 'N/A'}</td>
+                                    <td data-label="Final P&L" class="${(item.finalPL || 0) >= 0 ? 'positive' : 'negative'}">₹${item.finalPL?.toFixed(2) || 'N/A'}</td>
+                                    <td data-label="Closed Date">${new Date(item.closedDate).toLocaleDateString()}</td>
+                                    <td data-label="Actions">
                                         <button class="action-btn delete-btn" onclick="adminPortal.deleteClosedPosition(${item.id})">Delete</button>
                                     </td>
                                 </tr>
@@ -1098,14 +1375,31 @@
                 this.showLoading('Deleting User', `Removing user "${username}" and all associated data...`);
 
                 try {
+                    console.log(`Attempting to delete user ID: ${userId}, Username: ${username}`);
+                    
                     const response = await fetch(`/api/admin/users/${userId}`, {
                         method: 'DELETE'
                     });
 
+                    console.log(`Delete response status: ${response.status}`);
+                    
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error(`Delete request failed with status ${response.status}:`, errorText);
+                        throw new Error(`Server error: ${response.status} - ${errorText}`);
+                    }
+
                     const result = await response.json();
+                    console.log('Delete result:', result);
 
                     if (result.success) {
-                        this.showSuccess(`User "${username}" and all associated data deleted successfully`);
+                        this.showSuccess(result.message || `User "${username}" and all associated data deleted successfully`);
+                        
+                        // Show deletion details if available
+                        if (result.deletedData) {
+                            console.log('Deletion details:', result.deletedData);
+                        }
+                        
                         await this.loadUsers(); // Reload users list
                         await this.loadDashboard(); // Refresh dashboard stats
                         
@@ -1117,11 +1411,97 @@
                             document.getElementById('closedData').innerHTML = '<div class="loading">Select a user to view closed positions</div>';
                         }
                     } else {
+                        console.error('Delete operation failed:', result.message);
                         this.showError(result.message || 'Failed to delete user');
                     }
                 } catch (error) {
                     console.error('Error deleting user:', error);
-                    this.showError('Error deleting user');
+                    this.showError(`Error deleting user: ${error.message}`);
+                } finally {
+                    this.hideLoading();
+                }
+            },
+
+            async clearDatabase() {
+                // Show extremely detailed confirmation dialog
+                const confirmMessage = `🚨 CRITICAL WARNING 🚨
+
+Are you absolutely sure you want to CLEAR THE ENTIRE DATABASE?
+
+This will PERMANENTLY DELETE ALL:
+• All user accounts
+• All portfolio data
+• All closed positions
+• All user sessions
+• All application data
+
+⚠️  THIS ACTION CANNOT BE UNDONE! ⚠️
+
+Only your current admin session will be preserved.
+
+Type "CLEAR DATABASE" to confirm this destructive action:`;
+                
+                const userInput = prompt(confirmMessage);
+                
+                if (userInput !== 'CLEAR DATABASE') {
+                    if (userInput !== null) { // User didn't cancel
+                        alert('Database clear cancelled - incorrect confirmation text');
+                    }
+                    return;
+                }
+
+                // Second confirmation
+                if (!confirm('FINAL CONFIRMATION: This will delete ALL data in the database. Are you absolutely certain?')) {
+                    return;
+                }
+
+                this.showLoading('🗑️ Clearing Database', 'Permanently deleting all data from the database...');
+
+                try {
+                    console.log('Attempting to clear entire database');
+                    
+                    const response = await fetch('/api/admin/clear-database', {
+                        method: 'POST'
+                    });
+
+                    console.log(`Clear database response status: ${response.status}`);
+                    
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error(`Clear database request failed with status ${response.status}:`, errorText);
+                        throw new Error(`Server error: ${response.status} - ${errorText}`);
+                    }
+
+                    const result = await response.json();
+                    console.log('Clear database result:', result);
+
+                    if (result.success) {
+                        this.showSuccess(result.message || 'Database cleared successfully - all data has been permanently deleted');
+                        
+                        // Show cleared data details if available
+                        if (result.clearedData) {
+                            console.log('Cleared data details:', result.clearedData);
+                            const details = result.clearedData;
+                            const detailsMessage = `Database cleared successfully!\n\nDeleted:\n• ${details.users} users\n• ${details.portfolioItems} portfolio items\n• ${details.closedPositions} closed positions\n• ${details.userSessions} user sessions\n• ${details.adminSessions} admin sessions (except current)`;
+                            alert(detailsMessage);
+                        }
+                        
+                        // Refresh all data
+                        await this.loadDashboard();
+                        await this.loadUsers();
+                        
+                        // Clear selected user
+                        this.selectedUser = null;
+                        document.getElementById('selectedUserInfo').style.display = 'none';
+                        document.getElementById('portfolioData').innerHTML = '<div class="loading">Select a user to view portfolio data</div>';
+                        document.getElementById('closedData').innerHTML = '<div class="loading">Select a user to view closed positions</div>';
+                    } else {
+                        console.error('Clear database operation failed:', result.message);
+                        this.showError(result.message || 'Failed to clear database');
+                    }
+                } catch (error) {
+                    console.error('Error clearing database:', error);
+                    this.showError(`Error clearing database: ${error.message}`);
                 } finally {
                     this.hideLoading();
                 }
