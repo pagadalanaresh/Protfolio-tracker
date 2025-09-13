@@ -83,10 +83,19 @@ class PortfolioTracker {
     }
 
     async init() {
-        // Check authentication first
-        this.authenticated = await authHandler.checkAuth();
-        if (!this.authenticated) {
-            return; // Will redirect to auth page
+        // Check database status first
+        const dbStatus = await this.checkDatabaseStatus();
+        
+        if (dbStatus.database === 'connected') {
+            // Database is available, require authentication
+            this.authenticated = await authHandler.checkAuth();
+            if (!this.authenticated) {
+                return; // Will redirect to auth page
+            }
+        } else {
+            // Database not available, run in fallback mode without authentication
+            console.log('Running in fallback mode - authentication bypassed');
+            this.authenticated = true; // Allow access without authentication
         }
 
         this.bindEvents();
@@ -96,6 +105,16 @@ class PortfolioTracker {
         this.loadClosedPositions();
         this.updateSummary();
         this.renderCharts();
+    }
+
+    async checkDatabaseStatus() {
+        try {
+            const response = await fetch('/api/db-status');
+            return await response.json();
+        } catch (error) {
+            console.error('Error checking database status:', error);
+            return { database: 'disconnected' };
+        }
     }
 
     async loadDataFromServer() {

@@ -37,6 +37,20 @@ app.use((req, res, next) => {
 
 app.use(express.static('.'));
 
+// Explicit routes for HTML files to ensure they're served correctly
+app.get('/auth.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'auth.html'));
+});
+
+app.get('/index.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Serve index.html for root path
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 // Authentication middleware
 async function authenticateUser(req, res, next) {
   try {
