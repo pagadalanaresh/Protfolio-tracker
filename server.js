@@ -39,16 +39,49 @@ app.use(express.static('.'));
 
 // Explicit routes for HTML files to ensure they're served correctly
 app.get('/auth.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'auth.html'));
+  const timestamp = new Date().toISOString();
+  const filePath = path.join(__dirname, 'auth.html');
+  console.log(`[${timestamp}] Serving auth.html from: ${filePath}`);
+  
+  res.sendFile(filePath, (err) => {
+    if (err) {
+      console.error(`[${timestamp}] Error serving auth.html:`, err);
+      res.status(500).send('Error loading authentication page');
+    } else {
+      console.log(`[${timestamp}] Successfully served auth.html`);
+    }
+  });
 });
 
 app.get('/index.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+  const timestamp = new Date().toISOString();
+  const filePath = path.join(__dirname, 'index.html');
+  console.log(`[${timestamp}] Serving index.html from: ${filePath}`);
+  
+  res.sendFile(filePath, (err) => {
+    if (err) {
+      console.error(`[${timestamp}] Error serving index.html:`, err);
+      res.status(500).send('Error loading main page');
+    } else {
+      console.log(`[${timestamp}] Successfully served index.html`);
+    }
+  });
 });
 
 // Serve index.html for root path
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+  const timestamp = new Date().toISOString();
+  const filePath = path.join(__dirname, 'index.html');
+  console.log(`[${timestamp}] Serving root path with index.html from: ${filePath}`);
+  
+  res.sendFile(filePath, (err) => {
+    if (err) {
+      console.error(`[${timestamp}] Error serving root index.html:`, err);
+      res.status(500).send('Error loading application');
+    } else {
+      console.log(`[${timestamp}] Successfully served root index.html`);
+    }
+  });
 });
 
 // Authentication middleware
@@ -475,6 +508,42 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Debug endpoint to check file existence
+app.get('/debug/files', async (req, res) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] Debug files endpoint called`);
+  
+  try {
+    const files = {
+      'auth.html': false,
+      'index.html': false,
+      'script.js': false,
+      'styles.css': false,
+      'server.js': false
+    };
+    
+    for (const filename of Object.keys(files)) {
+      try {
+        await fs.access(path.join(__dirname, filename));
+        files[filename] = true;
+        console.log(`[${timestamp}] File exists: ${filename}`);
+      } catch (error) {
+        console.log(`[${timestamp}] File missing: ${filename}`);
+      }
+    }
+    
+    res.json({
+      timestamp: new Date().toISOString(),
+      workingDirectory: __dirname,
+      files: files,
+      isDatabaseAvailable: isDatabaseAvailable
+    });
+  } catch (error) {
+    console.error(`[${timestamp}] Debug files error:`, error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Database status endpoint
 app.get('/api/db-status', async (req, res) => {
   try {
@@ -490,6 +559,35 @@ app.get('/api/db-status', async (req, res) => {
       timestamp: new Date().toISOString()
     });
   }
+});
+
+// Catch-all route for any unmatched routes - serve index.html for SPA behavior
+app.get('*', (req, res) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] Catch-all route hit for: ${req.url}`);
+  
+  // If it's an API route that wasn't matched, return 404
+  if (req.url.startsWith('/api/')) {
+    console.log(`[${timestamp}] API route not found: ${req.url}`);
+    return res.status(404).json({ error: 'API endpoint not found' });
+  }
+  
+  // For HTML files, try to serve them directly
+  if (req.url.endsWith('.html')) {
+    const filePath = path.join(__dirname, req.url);
+    console.log(`[${timestamp}] Attempting to serve HTML file: ${filePath}`);
+    
+    return res.sendFile(filePath, (err) => {
+      if (err) {
+        console.log(`[${timestamp}] HTML file not found: ${filePath}, serving index.html instead`);
+        res.sendFile(path.join(__dirname, 'index.html'));
+      }
+    });
+  }
+  
+  // For all other routes, serve index.html (SPA behavior)
+  console.log(`[${timestamp}] Serving index.html for route: ${req.url}`);
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 // Ensure data directory exists
