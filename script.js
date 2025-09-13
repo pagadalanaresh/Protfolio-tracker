@@ -1,3 +1,72 @@
+// Authentication Handler
+const authHandler = {
+    // Check authentication status on page load
+    async checkAuth() {
+        try {
+            const response = await fetch('/api/auth/check');
+            const result = await response.json();
+            
+            if (result.authenticated) {
+                // User is logged in, show user info
+                this.showUserInfo(result.user);
+                return true;
+            } else {
+                // User not logged in, redirect to auth page
+                window.location.href = '/auth.html';
+                return false;
+            }
+        } catch (error) {
+            console.error('Auth check failed:', error);
+            // On error, redirect to auth page
+            window.location.href = '/auth.html';
+            return false;
+        }
+    },
+
+    // Show user information in header
+    showUserInfo(user) {
+        const userSection = document.getElementById('userSection');
+        const usernameElement = document.getElementById('username');
+        
+        if (userSection && usernameElement) {
+            usernameElement.textContent = user.username;
+            userSection.style.display = 'block';
+        }
+    },
+
+    // Handle logout
+    async logout() {
+        try {
+            const response = await fetch('/api/auth/logout', {
+                method: 'POST'
+            });
+            
+            if (response.ok) {
+                // Redirect to auth page
+                window.location.href = '/auth.html';
+            } else {
+                console.error('Logout failed');
+                // Force redirect anyway
+                window.location.href = '/auth.html';
+            }
+        } catch (error) {
+            console.error('Logout error:', error);
+            // Force redirect on error
+            window.location.href = '/auth.html';
+        }
+    },
+
+    // Handle API errors (like authentication failures)
+    handleApiError(response) {
+        if (response.status === 401) {
+            // Authentication required, redirect to login
+            window.location.href = '/auth.html';
+            return true;
+        }
+        return false;
+    }
+};
+
 class PortfolioTracker {
     constructor() {
         this.portfolio = [];
@@ -9,10 +78,17 @@ class PortfolioTracker {
         this.closedSortColumn = null;
         this.closedSortDirection = 'asc';
         this.editingStockId = null;
+        this.authenticated = false;
         this.init();
     }
 
     async init() {
+        // Check authentication first
+        this.authenticated = await authHandler.checkAuth();
+        if (!this.authenticated) {
+            return; // Will redirect to auth page
+        }
+
         this.bindEvents();
         await this.loadDataFromServer();
         this.loadMarketIndices();
@@ -1208,6 +1284,525 @@ class PortfolioTracker {
     }
 }
 
+// Custom Popup System
+class CustomPopup {
+    constructor() {
+        this.overlay = document.getElementById('customPopupOverlay');
+        this.container = document.getElementById('customPopupContainer');
+        this.title = document.getElementById('popupTitle');
+        this.content = document.getElementById('popupContent');
+        this.footer = document.getElementById('popupFooter');
+        this.isOpen = false;
+        this.currentCallback = null;
+        this.bindEvents();
+    }
+
+    bindEvents() {
+        // Close popup when clicking overlay
+        this.overlay.addEventListener('click', (e) => {
+            if (e.target === this.overlay) {
+                this.close();
+            }
+        });
+
+        // Close popup with Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.isOpen) {
+                this.close();
+            }
+        });
+    }
+
+    show(options = {}) {
+        const {
+            title = 'Popup',
+            content = '',
+            type = 'info',
+            buttons = [],
+            width = '500px',
+            onClose = null
+        } = options;
+
+        this.title.textContent = title;
+        this.content.innerHTML = content;
+        this.container.style.width = width;
+        this.currentCallback = onClose;
+
+        // Clear existing buttons
+        this.footer.innerHTML = '';
+
+        // Add buttons
+        if (buttons.length > 0) {
+            buttons.forEach(button => {
+                const btn = document.createElement('button');
+                btn.textContent = button.text;
+                btn.className = `popup-btn-${button.type || 'secondary'}`;
+                btn.onclick = () => {
+                    if (button.action) {
+                        button.action();
+                    }
+                    if (button.closeOnClick !== false) {
+                        this.close();
+                    }
+                };
+                this.footer.appendChild(btn);
+            });
+        } else {
+            // Default close button
+            const closeBtn = document.createElement('button');
+            closeBtn.textContent = 'Close';
+            closeBtn.className = 'popup-btn-secondary';
+            closeBtn.onclick = () => this.close();
+            this.footer.appendChild(closeBtn);
+        }
+
+        // Show popup with animation
+        this.overlay.style.display = 'flex';
+        setTimeout(() => {
+            this.overlay.classList.add('show');
+        }, 10);
+
+        this.isOpen = true;
+        document.body.style.overflow = 'hidden';
+    }
+
+    close() {
+        this.overlay.classList.remove('show');
+        setTimeout(() => {
+            this.overlay.style.display = 'none';
+            document.body.style.overflow = '';
+        }, 300);
+
+        this.isOpen = false;
+
+        if (this.currentCallback) {
+            this.currentCallback();
+            this.currentCallback = null;
+        }
+    }
+
+    // Predefined popup types
+    alert(title, message, type = 'info') {
+        const icons = {
+            info: 'ℹ️',
+            success: '✅',
+            warning: '⚠️',
+            error: '❌'
+        };
+
+        const content = `
+            <div class="popup-alert popup-alert-${type}">
+                <span class="popup-alert-icon">${icons[type]}</span>
+                <div>${message}</div>
+            </div>
+        `;
+
+        this.show({
+            title,
+            content,
+            buttons: [
+                { text: 'OK', type: 'primary' }
+            ]
+        });
+    }
+
+    confirm(title, message, onConfirm, onCancel = null) {
+        const content = `
+            <div class="popup-alert popup-alert-warning">
+                <span class="popup-alert-icon">❓</span>
+                <div>${message}</div>
+            </div>
+        `;
+
+        this.show({
+            title,
+            content,
+            buttons: [
+                { 
+                    text: 'Cancel', 
+                    type: 'secondary',
+                    action: onCancel
+                },
+                { 
+                    text: 'Confirm', 
+                    type: 'primary',
+                    action: onConfirm
+                }
+            ]
+        });
+    }
+
+    form(title, fields, onSubmit, onCancel = null) {
+        let formHTML = '<form id="popupForm">';
+        
+        fields.forEach(field => {
+            formHTML += `
+                <div class="popup-form-group">
+                    <label for="${field.id}">${field.label}:</label>
+            `;
+            
+            if (field.type === 'select') {
+                formHTML += `<select id="${field.id}" ${field.required ? 'required' : ''}>`;
+                field.options.forEach(option => {
+                    const selected = option.value === field.value ? 'selected' : '';
+                    formHTML += `<option value="${option.value}" ${selected}>${option.text}</option>`;
+                });
+                formHTML += '</select>';
+            } else if (field.type === 'textarea') {
+                formHTML += `<textarea id="${field.id}" ${field.required ? 'required' : ''} placeholder="${field.placeholder || ''}">${field.value || ''}</textarea>`;
+            } else {
+                formHTML += `<input type="${field.type || 'text'}" id="${field.id}" ${field.required ? 'required' : ''} placeholder="${field.placeholder || ''}" value="${field.value || ''}" ${field.step ? `step="${field.step}"` : ''} ${field.min !== undefined ? `min="${field.min}"` : ''}>`;
+            }
+            
+            if (field.help) {
+                formHTML += `<small>${field.help}</small>`;
+            }
+            
+            formHTML += '</div>';
+        });
+        
+        formHTML += '</form>';
+
+        this.show({
+            title,
+            content: formHTML,
+            buttons: [
+                { 
+                    text: 'Cancel', 
+                    type: 'secondary',
+                    action: onCancel
+                },
+                { 
+                    text: 'Submit', 
+                    type: 'primary',
+                    action: () => {
+                        const form = document.getElementById('popupForm');
+                        if (form.checkValidity()) {
+                            const formData = {};
+                            fields.forEach(field => {
+                                const element = document.getElementById(field.id);
+                                formData[field.id] = element.value;
+                            });
+                            onSubmit(formData);
+                        } else {
+                            form.reportValidity();
+                            return false; // Don't close popup
+                        }
+                    },
+                    closeOnClick: false
+                }
+            ]
+        });
+    }
+
+    loading(title, message) {
+        const content = `
+            <div style="text-align: center; padding: 20px;">
+                <div class="popup-spinner" style="margin: 0 auto 15px;"></div>
+                <p>${message}</p>
+            </div>
+        `;
+
+        this.show({
+            title,
+            content,
+            buttons: [] // No buttons for loading popup
+        });
+    }
+
+    progress(title, message, percentage = 0) {
+        const content = `
+            <div style="text-align: center; padding: 20px;">
+                <p style="margin-bottom: 15px;">${message}</p>
+                <div class="popup-progress">
+                    <div class="popup-progress-bar" style="width: ${percentage}%"></div>
+                </div>
+                <p style="margin-top: 10px; font-weight: 600;">${percentage}%</p>
+            </div>
+        `;
+
+        this.show({
+            title,
+            content,
+            buttons: []
+        });
+    }
+
+    updateProgress(percentage, message = null) {
+        if (this.isOpen) {
+            const progressBar = this.content.querySelector('.popup-progress-bar');
+            const percentText = this.content.querySelector('p:last-child');
+            
+            if (progressBar) {
+                progressBar.style.width = `${percentage}%`;
+            }
+            if (percentText) {
+                percentText.textContent = `${percentage}%`;
+            }
+            if (message) {
+                const messageElement = this.content.querySelector('p:first-child');
+                if (messageElement) {
+                    messageElement.textContent = message;
+                }
+            }
+        }
+    }
+
+    list(title, items, actions = []) {
+        let listHTML = '<ul class="popup-list">';
+        
+        items.forEach((item, index) => {
+            listHTML += `
+                <li class="popup-list-item">
+                    <div class="popup-list-item-content">
+                        <div class="popup-list-item-title">${item.title}</div>
+                        ${item.subtitle ? `<div class="popup-list-item-subtitle">${item.subtitle}</div>` : ''}
+                    </div>
+                    <div class="popup-list-item-actions">
+            `;
+            
+            actions.forEach(action => {
+                listHTML += `<button class="popup-btn-${action.type || 'secondary'}" onclick="customPopup.handleListAction('${action.id}', ${index})" style="padding: 5px 10px; font-size: 0.8rem;">${action.text}</button>`;
+            });
+            
+            listHTML += '</div></li>';
+        });
+        
+        listHTML += '</ul>';
+
+        this.currentListItems = items;
+        this.currentListActions = actions;
+
+        this.show({
+            title,
+            content: listHTML,
+            buttons: [
+                { text: 'Close', type: 'secondary' }
+            ]
+        });
+    }
+
+    handleListAction(actionId, itemIndex) {
+        const action = this.currentListActions.find(a => a.id === actionId);
+        const item = this.currentListItems[itemIndex];
+        
+        if (action && action.handler) {
+            action.handler(item, itemIndex);
+        }
+    }
+
+    // Stock-specific popup methods
+    showStockDetails(stock) {
+        const pl = stock.currentValue - stock.invested;
+        const plPercent = stock.invested > 0 ? (pl / stock.invested) * 100 : 0;
+        const plClass = pl >= 0 ? 'positive' : 'negative';
+
+        const content = `
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                <div><strong>Company:</strong> ${stock.name}</div>
+                <div><strong>Ticker:</strong> ${stock.ticker}</div>
+                <div><strong>Position:</strong> <span class="position-badge position-${stock.position?.toLowerCase() || 'medium'}">${stock.position || 'Medium'}</span></div>
+                <div><strong>Quantity:</strong> ${stock.quantity}</div>
+                <div><strong>Buy Price:</strong> ₹${stock.buyPrice.toFixed(2)}</div>
+                <div><strong>Current Price:</strong> ₹${stock.currentPrice.toFixed(2)}</div>
+                <div><strong>Target Price:</strong> ${stock.targetPrice ? '₹' + stock.targetPrice.toFixed(2) : 'Not set'}</div>
+                <div><strong>Stop Loss:</strong> ${stock.stopLoss ? '₹' + stock.stopLoss.toFixed(2) : 'Not set'}</div>
+                <div><strong>Invested:</strong> ₹${stock.invested.toFixed(2)}</div>
+                <div><strong>Current Value:</strong> ₹${stock.currentValue.toFixed(2)}</div>
+                <div><strong>P&L:</strong> <span class="${plClass}">₹${pl.toFixed(2)}</span></div>
+                <div><strong>P&L %:</strong> <span class="${plClass}">${plPercent.toFixed(2)}%</span></div>
+            </div>
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e2e8f0;">
+                <div><strong>Purchase Date:</strong> ${stock.purchaseDate ? new Date(stock.purchaseDate).toLocaleDateString() : 'N/A'}</div>
+                <div style="margin-top: 8px;"><strong>Holding Period:</strong> ${stock.purchaseDate ? portfolioTracker.calculateHoldingPeriod(stock.purchaseDate) : 'N/A'}</div>
+                ${stock.dayChange !== undefined ? `<div style="margin-top: 8px;"><strong>Day Change:</strong> <span class="${(stock.dayChangePercent || 0) >= 0 ? 'positive' : 'negative'}">${(stock.dayChangePercent || 0) >= 0 ? '↑' : '↓'}${Math.abs(stock.dayChangePercent || 0).toFixed(2)}%</span></div>` : ''}
+            </div>
+        `;
+
+        this.show({
+            title: `${stock.ticker} - Stock Details`,
+            content,
+            width: '600px',
+            buttons: [
+                { text: 'Edit', type: 'primary', action: () => portfolioTracker.editStock(stock.id) },
+                { text: 'Close Position', type: 'success', action: () => portfolioTracker.closePosition(stock.id) },
+                { text: 'Delete', type: 'danger', action: () => portfolioTracker.deleteStock(stock.id) },
+                { text: 'Close', type: 'secondary' }
+            ]
+        });
+    }
+
+    showPortfolioSummary() {
+        const totalInvested = portfolioTracker.portfolio.reduce((sum, stock) => sum + stock.invested, 0);
+        const currentValue = portfolioTracker.portfolio.reduce((sum, stock) => sum + stock.currentValue, 0);
+        const totalPL = currentValue - totalInvested;
+        const totalPLPercent = totalInvested > 0 ? (totalPL / totalInvested) * 100 : 0;
+
+        const gainers = portfolioTracker.portfolio.filter(stock => stock.pl > 0).length;
+        const losers = portfolioTracker.portfolio.filter(stock => stock.pl < 0).length;
+        const neutral = portfolioTracker.portfolio.filter(stock => stock.pl === 0).length;
+
+        const topGainer = portfolioTracker.portfolio.reduce((max, stock) => 
+            stock.plPercent > (max?.plPercent || -Infinity) ? stock : max, null);
+        const topLoser = portfolioTracker.portfolio.reduce((min, stock) => 
+            stock.plPercent < (min?.plPercent || Infinity) ? stock : min, null);
+
+        const content = `
+            <div class="popup-alert popup-alert-info">
+                <span class="popup-alert-icon">📊</span>
+                <div>Comprehensive portfolio analysis and statistics</div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0;">
+                <div style="background: #f8fafc; padding: 15px; border-radius: 8px;">
+                    <h4 style="margin: 0 0 10px 0; color: #4a5568;">Financial Summary</h4>
+                    <div><strong>Total Invested:</strong> ₹${totalInvested.toFixed(2)}</div>
+                    <div><strong>Current Value:</strong> ₹${currentValue.toFixed(2)}</div>
+                    <div><strong>Total P&L:</strong> <span class="${totalPL >= 0 ? 'positive' : 'negative'}">₹${totalPL.toFixed(2)}</span></div>
+                    <div><strong>Total P&L %:</strong> <span class="${totalPLPercent >= 0 ? 'positive' : 'negative'}">${totalPLPercent.toFixed(2)}%</span></div>
+                </div>
+                
+                <div style="background: #f8fafc; padding: 15px; border-radius: 8px;">
+                    <h4 style="margin: 0 0 10px 0; color: #4a5568;">Portfolio Stats</h4>
+                    <div><strong>Total Stocks:</strong> ${portfolioTracker.portfolio.length}</div>
+                    <div><strong>Gainers:</strong> <span class="positive">${gainers}</span></div>
+                    <div><strong>Losers:</strong> <span class="negative">${losers}</span></div>
+                    <div><strong>Neutral:</strong> ${neutral}</div>
+                </div>
+            </div>
+            
+            ${topGainer || topLoser ? `
+                <div style="margin: 20px 0;">
+                    <h4 style="margin: 0 0 15px 0; color: #4a5568;">Top Performers</h4>
+                    ${topGainer ? `<div style="margin-bottom: 8px;"><strong>Best Performer:</strong> ${topGainer.ticker} <span class="positive">(+${topGainer.plPercent.toFixed(2)}%)</span></div>` : ''}
+                    ${topLoser ? `<div><strong>Worst Performer:</strong> ${topLoser.ticker} <span class="negative">(${topLoser.plPercent.toFixed(2)}%)</span></div>` : ''}
+                </div>
+            ` : ''}
+        `;
+
+        this.show({
+            title: '📈 Portfolio Summary',
+            content,
+            width: '650px',
+            buttons: [
+                { text: 'Refresh Prices', type: 'primary', action: () => portfolioTracker.refreshPrices() },
+                { text: 'Export Data', type: 'secondary', action: () => this.showExportOptions() },
+                { text: 'Close', type: 'secondary' }
+            ]
+        });
+    }
+
+    showExportOptions() {
+        const content = `
+            <div class="popup-alert popup-alert-info">
+                <span class="popup-alert-icon">📤</span>
+                <div>Choose export format for your portfolio data</div>
+            </div>
+            <div style="margin: 20px 0;">
+                <p>Select the format you'd like to export your portfolio data:</p>
+            </div>
+        `;
+
+        this.show({
+            title: 'Export Portfolio Data',
+            content,
+            buttons: [
+                { text: 'Export as JSON', type: 'primary', action: () => this.exportData('json') },
+                { text: 'Export as CSV', type: 'primary', action: () => this.exportData('csv') },
+                { text: 'Cancel', type: 'secondary' }
+            ]
+        });
+    }
+
+    exportData(format) {
+        if (format === 'json') {
+            const dataStr = JSON.stringify(portfolioTracker.portfolio, null, 2);
+            this.downloadFile(dataStr, 'portfolio.json', 'application/json');
+        } else if (format === 'csv') {
+            const headers = ['Ticker', 'Name', 'Quantity', 'Buy Price', 'Current Price', 'Invested', 'Current Value', 'P&L', 'P&L %', 'Position', 'Purchase Date'];
+            const csvContent = [
+                headers.join(','),
+                ...portfolioTracker.portfolio.map(stock => [
+                    stock.ticker,
+                    `"${stock.name}"`,
+                    stock.quantity,
+                    stock.buyPrice,
+                    stock.currentPrice,
+                    stock.invested,
+                    stock.currentValue,
+                    stock.pl,
+                    stock.plPercent,
+                    stock.position,
+                    stock.purchaseDate
+                ].join(','))
+            ].join('\n');
+            this.downloadFile(csvContent, 'portfolio.csv', 'text/csv');
+        }
+        
+        this.alert('Export Complete', `Portfolio data exported successfully as ${format.toUpperCase()}!`, 'success');
+    }
+
+    downloadFile(content, filename, contentType) {
+        const blob = new Blob([content], { type: contentType });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+    }
+
+    showHelp() {
+        const content = `
+            <div class="popup-alert popup-alert-info">
+                <span class="popup-alert-icon">💡</span>
+                <div>Learn how to use the Portfolio Tracker effectively</div>
+            </div>
+            
+            <div style="margin: 20px 0;">
+                <h4 style="color: #4a5568; margin-bottom: 10px;">Getting Started</h4>
+                <ul style="margin-left: 20px; line-height: 1.8;">
+                    <li>Add stocks using NSE ticker symbols (e.g., RELIANCE, TCS, INFY)</li>
+                    <li>Set target prices and stop losses for better risk management</li>
+                    <li>Use the refresh button to update real-time prices</li>
+                    <li>Click on stock rows for detailed information</li>
+                </ul>
+                
+                <h4 style="color: #4a5568; margin: 20px 0 10px 0;">Features</h4>
+                <ul style="margin-left: 20px; line-height: 1.8;">
+                    <li><strong>Portfolio Analytics:</strong> View charts and distribution</li>
+                    <li><strong>Position Types:</strong> Long, Medium, Short term investments</li>
+                    <li><strong>Closed Positions:</strong> Track your trading history</li>
+                    <li><strong>Market Indices:</strong> Monitor NIFTY 50 and SENSEX</li>
+                    <li><strong>Export Data:</strong> Download your portfolio as JSON or CSV</li>
+                </ul>
+                
+                <h4 style="color: #4a5568; margin: 20px 0 10px 0;">Tips</h4>
+                <ul style="margin-left: 20px; line-height: 1.8;">
+                    <li>Regularly update your portfolio for accurate tracking</li>
+                    <li>Use stop losses to manage risk effectively</li>
+                    <li>Review closed positions to analyze your trading performance</li>
+                    <li>Check the analytics section for portfolio insights</li>
+                </ul>
+            </div>
+        `;
+
+        this.show({
+            title: '❓ Help & Guide',
+            content,
+            width: '600px',
+            buttons: [
+                { text: 'Got it!', type: 'primary' }
+            ]
+        });
+    }
+}
+
+// Initialize custom popup system
+const customPopup = new CustomPopup();
+
 // Initialize the portfolio tracker
 const portfolioTracker = new PortfolioTracker();
 
@@ -1257,4 +1852,146 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Start auto-refresh every 1 minute
     portfolioTracker.startAutoRefresh();
+});
+
+// Demo Functions for Popup System
+function demoAlert() {
+    customPopup.alert(
+        'Success Alert',
+        'This is a success alert popup! Your portfolio has been updated successfully.',
+        'success'
+    );
+}
+
+function demoConfirm() {
+    customPopup.confirm(
+        'Delete Confirmation',
+        'Are you sure you want to delete this stock from your portfolio? This action cannot be undone.',
+        () => {
+            customPopup.alert('Confirmed', 'Stock deleted successfully!', 'success');
+        },
+        () => {
+            customPopup.alert('Cancelled', 'Delete operation cancelled.', 'info');
+        }
+    );
+}
+
+function demoForm() {
+    const fields = [
+        {
+            id: 'stockTicker',
+            label: 'Stock Ticker',
+            type: 'text',
+            placeholder: 'e.g., RELIANCE',
+            required: true,
+            help: 'Enter NSE stock symbol'
+        },
+        {
+            id: 'investmentAmount',
+            label: 'Investment Amount',
+            type: 'number',
+            placeholder: '0.00',
+            step: '0.01',
+            min: 0,
+            required: true,
+            help: 'Amount in INR'
+        },
+        {
+            id: 'investmentType',
+            label: 'Investment Type',
+            type: 'select',
+            required: true,
+            options: [
+                { value: 'long', text: 'Long Term' },
+                { value: 'medium', text: 'Medium Term' },
+                { value: 'short', text: 'Short Term' }
+            ],
+            value: 'medium'
+        },
+        {
+            id: 'notes',
+            label: 'Investment Notes',
+            type: 'textarea',
+            placeholder: 'Optional notes about this investment...',
+            help: 'Any additional information'
+        }
+    ];
+
+    customPopup.form(
+        'Add New Investment',
+        fields,
+        (formData) => {
+            customPopup.alert(
+                'Investment Added',
+                `Successfully added ${formData.stockTicker} with investment of ₹${formData.investmentAmount}!`,
+                'success'
+            );
+        },
+        () => {
+            customPopup.alert('Cancelled', 'Investment form cancelled.', 'info');
+        }
+    );
+}
+
+function demoProgress() {
+    customPopup.progress('Processing Portfolio', 'Updating stock prices...', 0);
+    
+    let progress = 0;
+    const interval = setInterval(() => {
+        progress += Math.random() * 20;
+        if (progress >= 100) {
+            progress = 100;
+            customPopup.updateProgress(progress, 'Portfolio update complete!');
+            setTimeout(() => {
+                customPopup.close();
+                customPopup.alert('Complete', 'Portfolio has been successfully updated!', 'success');
+            }, 1000);
+            clearInterval(interval);
+        } else {
+            const messages = [
+                'Fetching market data...',
+                'Calculating P&L...',
+                'Updating charts...',
+                'Refreshing analytics...',
+                'Finalizing updates...'
+            ];
+            const message = messages[Math.floor(Math.random() * messages.length)];
+            customPopup.updateProgress(Math.floor(progress), message);
+        }
+    }, 500);
+}
+
+// Enhanced table row click functionality to show stock details
+document.addEventListener('DOMContentLoaded', function() {
+    // Add click event listener to portfolio table rows
+    document.addEventListener('click', function(e) {
+        const row = e.target.closest('tr');
+        if (row && row.parentElement.id === 'portfolioBody') {
+            // Get stock ticker from the row
+            const tickerCell = row.querySelector('td:nth-child(2)');
+            if (tickerCell) {
+                const ticker = tickerCell.textContent.trim();
+                const stock = portfolioTracker.portfolio.find(s => s.ticker === ticker);
+                if (stock && !e.target.closest('button')) {
+                    customPopup.showStockDetails(stock);
+                }
+            }
+        }
+    });
+    
+    // Add hover effect to portfolio rows
+    const style = document.createElement('style');
+    style.textContent = `
+        #portfolioBody tr {
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        #portfolioBody tr:hover {
+            background-color: #f0f9ff !important;
+        }
+        #portfolioBody tr:hover td {
+            background-color: transparent;
+        }
+    `;
+    document.head.appendChild(style);
 });

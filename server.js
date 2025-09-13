@@ -2,9 +2,12 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs').promises;
 const path = require('path');
+const cookieParser = require('cookie-parser');
+const crypto = require('crypto');
 const { 
   testConnection, 
   initializeDatabase, 
+  userOperations,
   portfolioOperations, 
   closedPositionsOperations 
 } = require('./database');
@@ -15,7 +18,243 @@ const PORT = process.env.PORT || 3002;
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(cookieParser());
+
+// Request logging middleware
+app.use((req, res, next) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ${req.method} ${req.url} - IP: ${req.ip || req.connection.remoteAddress}`);
+  
+  // Log request body for POST requests (excluding sensitive data)
+  if (req.method === 'POST' && req.body) {
+    const logBody = { ...req.body };
+    if (logBody.password) logBody.password = '[HIDDEN]';
+    console.log(`[${timestamp}] Request Body:`, JSON.stringify(logBody, null, 2));
+  }
+  
+  next();
+});
+
 app.use(express.static('.'));
+
+// Authentication middleware
+async function authenticateUser(req, res, next) {
+  try {
+    const sessionToken = req.cookies.sessionToken;
+    
+    if (!sessionToken) {
+      return res.status(401).json({ authenticated: false, message: 'No session token' });
+    }
+
+    if (isDatabaseAvailable) {
+      const session = await userOperations.findSession(sessionToken);
+      if (!session) {
+        return res.status(401).json({ authenticated: false, message: 'Invalid session' });
+      }
+      
+      req.user = {
+        id: session.user_id,
+        username: session.username,
+        email: session.email
+      };
+    } else {
+      // In fallback mode, we can't authenticate users
+      return res.status(503).json({ authenticated: false, message: 'Authentication requires database connection' });
+    }
+    
+    next();
+  } catch (error) {
+    console.error('Authentication error:', error);
+    res.status(500).json({ authenticated: false, message: 'Authentication error' });
+  }
+}
+
+// Generate session token
+function generateSessionToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+// Authentication Routes
+
+// Check authentication status
+app.get('/api/auth/check', async (req, res) => {
+  const timestamp = new Date().toISOString();
+  try {
+    const sessionToken = req.cookies.sessionToken;
+    console.log(`[${timestamp}] Auth check - Session token present: ${!!sessionToken}, DB available: ${isDatabaseAvailable}`);
+    
+    if (!sessionToken || !isDatabaseAvailable) {
+      console.log(`[${timestamp}] Auth check failed - No session token or DB unavailable`);
+      return res.json({ authenticated: false });
+    }
+
+    const session = await userOperations.findSession(sessionToken);
+    if (!session) {
+      console.log(`[${timestamp}] Auth check failed - Invalid session token`);
+      return res.json({ authenticated: false });
+    }
+
+    console.log(`[${timestamp}] Auth check successful - User: ${session.username}`);
+    res.json({ 
+      authenticated: true, 
+      user: {
+        username: session.username,
+        email: session.email
+      }
+    });
+  } catch (error) {
+    console.error(`[${timestamp}] Auth check error:`, error);
+    res.json({ authenticated: false });
+  }
+});
+
+// User signup
+app.post('/api/auth/signup', async (req, res) => {
+  const timestamp = new Date().toISOString();
+  try {
+    console.log(`[${timestamp}] Signup attempt - DB available: ${isDatabaseAvailable}`);
+    
+    if (!isDatabaseAvailable) {
+      console.log(`[${timestamp}] Signup failed - Database not available`);
+      return res.status(503).json({ success: false, message: 'Database connection required for user registration' });
+    }
+
+    const { username, email, phone, password } = req.body;
+
+    // Validate input
+    if (!username || !email || !password) {
+      console.log(`[${timestamp}] Signup failed - Missing required fields`);
+      return res.status(400).json({ success: false, message: 'Username, email, and password are required' });
+    }
+
+    if (password.length < 6) {
+      console.log(`[${timestamp}] Signup failed - Password too short`);
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters long' });
+    }
+
+    console.log(`[${timestamp}] Checking if user exists - Username: ${username}, Email: ${email}`);
+
+    // Check if user already exists
+    const existingUser = await userOperations.findByUsername(username);
+    if (existingUser) {
+      console.log(`[${timestamp}] Signup failed - Username already exists: ${username}`);
+      return res.status(400).json({ success: false, message: 'Username already exists' });
+    }
+
+    const existingEmail = await userOperations.findByEmail(email);
+    if (existingEmail) {
+      console.log(`[${timestamp}] Signup failed - Email already registered: ${email}`);
+      return res.status(400).json({ success: false, message: 'Email already registered' });
+    }
+
+    // Hash password using crypto
+    const passwordHash = crypto.createHash('sha256').update(password + 'salt').digest('hex');
+    console.log(`[${timestamp}] Password hashed successfully`);
+
+    // Create user
+    const newUser = await userOperations.createUser(username, email, phone, passwordHash);
+    console.log(`[${timestamp}] User created successfully - ID: ${newUser.id}, Username: ${newUser.username}`);
+
+    res.json({ 
+      success: true, 
+      message: 'Account created successfully',
+      user: {
+        id: newUser.id,
+        username: newUser.username,
+        email: newUser.email
+      }
+    });
+  } catch (error) {
+    console.error(`[${timestamp}] Signup error:`, error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+// User login
+app.post('/api/auth/login', async (req, res) => {
+  const timestamp = new Date().toISOString();
+  try {
+    console.log(`[${timestamp}] Login attempt - DB available: ${isDatabaseAvailable}`);
+    
+    if (!isDatabaseAvailable) {
+      console.log(`[${timestamp}] Login failed - Database not available`);
+      return res.status(503).json({ success: false, message: 'Database connection required for login' });
+    }
+
+    const { username, password } = req.body;
+
+    // Validate input
+    if (!username || !password) {
+      console.log(`[${timestamp}] Login failed - Missing credentials`);
+      return res.status(400).json({ success: false, message: 'Username and password are required' });
+    }
+
+    console.log(`[${timestamp}] Looking up user: ${username}`);
+
+    // Find user
+    const user = await userOperations.findByUsername(username);
+    if (!user) {
+      console.log(`[${timestamp}] Login failed - User not found: ${username}`);
+      return res.status(401).json({ success: false, message: 'Invalid username or password' });
+    }
+
+    console.log(`[${timestamp}] User found - ID: ${user.id}, verifying password`);
+
+    // Verify password using crypto
+    const hashedPassword = crypto.createHash('sha256').update(password + 'salt').digest('hex');
+    if (hashedPassword !== user.password_hash) {
+      console.log(`[${timestamp}] Login failed - Invalid password for user: ${username}`);
+      return res.status(401).json({ success: false, message: 'Invalid username or password' });
+    }
+
+    console.log(`[${timestamp}] Password verified - Creating session for user: ${username}`);
+
+    // Create session
+    const sessionToken = generateSessionToken();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    await userOperations.createSession(user.id, sessionToken, expiresAt);
+    console.log(`[${timestamp}] Session created - Token: ${sessionToken.substring(0, 8)}..., Expires: ${expiresAt}`);
+
+    // Set cookie
+    res.cookie('sessionToken', sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      expires: expiresAt
+    });
+
+    console.log(`[${timestamp}] Login successful - User: ${username}`);
+    res.json({ 
+      success: true, 
+      message: 'Login successful',
+      user: {
+        username: user.username,
+        email: user.email
+      }
+    });
+  } catch (error) {
+    console.error(`[${timestamp}] Login error:`, error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+// User logout
+app.post('/api/auth/logout', async (req, res) => {
+  try {
+    const sessionToken = req.cookies.sessionToken;
+    
+    if (sessionToken && isDatabaseAvailable) {
+      await userOperations.deleteSession(sessionToken);
+    }
+
+    res.clearCookie('sessionToken');
+    res.json({ success: true, message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
 
 // Data file paths (for migration purposes)
 const PORTFOLIO_FILE = path.join(__dirname, 'data', 'portfolio.json');
@@ -61,14 +300,25 @@ let isDatabaseAvailable = false;
 
 // API Routes
 
-// Get portfolio data
+// Get portfolio data (requires authentication when database is available)
 app.get('/api/portfolio', async (req, res) => {
   try {
     if (isDatabaseAvailable) {
-      const portfolio = await portfolioOperations.getAll();
+      // Require authentication for database mode
+      const sessionToken = req.cookies.sessionToken;
+      if (!sessionToken) {
+        return res.status(401).json({ authenticated: false, message: 'Authentication required' });
+      }
+
+      const session = await userOperations.findSession(sessionToken);
+      if (!session) {
+        return res.status(401).json({ authenticated: false, message: 'Invalid session' });
+      }
+
+      const portfolio = await portfolioOperations.getAll(session.user_id);
       res.json(portfolio);
     } else {
-      // Fallback to JSON file
+      // Fallback to JSON file (no authentication required)
       const data = await fs.readFile(PORTFOLIO_FILE, 'utf8');
       res.json(JSON.parse(data));
     }
@@ -88,16 +338,28 @@ app.get('/api/portfolio', async (req, res) => {
   }
 });
 
-// Save portfolio data
+// Save portfolio data (requires authentication when database is available)
 app.post('/api/portfolio', async (req, res) => {
   try {
     if (isDatabaseAvailable) {
-      await portfolioOperations.saveAll(req.body);
+      // Require authentication for database mode
+      const sessionToken = req.cookies.sessionToken;
+      if (!sessionToken) {
+        return res.status(401).json({ authenticated: false, message: 'Authentication required' });
+      }
+
+      const session = await userOperations.findSession(sessionToken);
+      if (!session) {
+        return res.status(401).json({ authenticated: false, message: 'Invalid session' });
+      }
+
+      await portfolioOperations.saveAll(session.user_id, req.body);
+      res.json({ success: true, message: 'Portfolio saved successfully' });
     } else {
-      // Fallback to JSON file
+      // Fallback to JSON file (no authentication required)
       await fs.writeFile(PORTFOLIO_FILE, JSON.stringify(req.body, null, 2));
+      res.json({ success: true, message: 'Portfolio saved successfully (fallback mode)' });
     }
-    res.json({ success: true, message: 'Portfolio saved successfully' });
   } catch (error) {
     console.error('Error saving portfolio data:', error);
     // Try fallback if database fails
@@ -114,14 +376,25 @@ app.post('/api/portfolio', async (req, res) => {
   }
 });
 
-// Get closed positions data
+// Get closed positions data (requires authentication when database is available)
 app.get('/api/closed-positions', async (req, res) => {
   try {
     if (isDatabaseAvailable) {
-      const closedPositions = await closedPositionsOperations.getAll();
+      // Require authentication for database mode
+      const sessionToken = req.cookies.sessionToken;
+      if (!sessionToken) {
+        return res.status(401).json({ authenticated: false, message: 'Authentication required' });
+      }
+
+      const session = await userOperations.findSession(sessionToken);
+      if (!session) {
+        return res.status(401).json({ authenticated: false, message: 'Invalid session' });
+      }
+
+      const closedPositions = await closedPositionsOperations.getAll(session.user_id);
       res.json(closedPositions);
     } else {
-      // Fallback to JSON file
+      // Fallback to JSON file (no authentication required)
       const data = await fs.readFile(CLOSED_POSITIONS_FILE, 'utf8');
       res.json(JSON.parse(data));
     }
@@ -141,16 +414,28 @@ app.get('/api/closed-positions', async (req, res) => {
   }
 });
 
-// Save closed positions data
+// Save closed positions data (requires authentication when database is available)
 app.post('/api/closed-positions', async (req, res) => {
   try {
     if (isDatabaseAvailable) {
-      await closedPositionsOperations.saveAll(req.body);
+      // Require authentication for database mode
+      const sessionToken = req.cookies.sessionToken;
+      if (!sessionToken) {
+        return res.status(401).json({ authenticated: false, message: 'Authentication required' });
+      }
+
+      const session = await userOperations.findSession(sessionToken);
+      if (!session) {
+        return res.status(401).json({ authenticated: false, message: 'Invalid session' });
+      }
+
+      await closedPositionsOperations.saveAll(session.user_id, req.body);
+      res.json({ success: true, message: 'Closed positions saved successfully' });
     } else {
-      // Fallback to JSON file
+      // Fallback to JSON file (no authentication required)
       await fs.writeFile(CLOSED_POSITIONS_FILE, JSON.stringify(req.body, null, 2));
+      res.json({ success: true, message: 'Closed positions saved successfully (fallback mode)' });
     }
-    res.json({ success: true, message: 'Closed positions saved successfully' });
   } catch (error) {
     console.error('Error saving closed positions data:', error);
     // Try fallback if database fails

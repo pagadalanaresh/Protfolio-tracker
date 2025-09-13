@@ -10,8 +10,18 @@
 <body>
     <div class="container">
         <header>
-            <h1>🇮🇳 Indian Stock Portfolio Tracker</h1>
-            <p>Track your NSE investments with real-time data</p>
+            <div class="header-content">
+                <div class="header-title">
+                    <h1>🇮🇳 Indian Stock Portfolio Tracker</h1>
+                    <p>Track your NSE investments with real-time data</p>
+                </div>
+                <div class="user-section" id="userSection" style="display: none;">
+                    <div class="user-info">
+                        <span class="user-welcome">Welcome, <strong id="username"></strong>!</span>
+                        <button class="logout-btn" onclick="authHandler.logout()">Logout</button>
+                    </div>
+                </div>
+            </div>
         </header>
 
         <div class="market-indices">
@@ -28,6 +38,19 @@
                     <span id="sensexValue">Loading...</span>
                     <span id="sensexChange" class="index-change">--</span>
                 </div>
+            </div>
+        </div>
+
+        <!-- Popup Demo Buttons -->
+        <div style="text-align: center; margin: 20px 0; padding: 20px; background: rgba(255,255,255,0.1); border-radius: 15px; backdrop-filter: blur(10px);">
+            <h3 style="color: white; margin-bottom: 15px;">🎯 Custom Popup Demos</h3>
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;">
+                <button onclick="customPopup.showPortfolioSummary()" style="background: #38a169 !important;">📊 Portfolio Summary</button>
+                <button onclick="customPopup.showHelp()" style="background: #3182ce !important;">❓ Help Guide</button>
+                <button onclick="demoAlert()" style="background: #e53e3e !important;">🚨 Alert Demo</button>
+                <button onclick="demoConfirm()" style="background: #d69e2e !important;">❓ Confirm Demo</button>
+                <button onclick="demoForm()" style="background: #805ad5 !important;">📝 Form Demo</button>
+                <button onclick="demoProgress()" style="background: #319795 !important;">⏳ Progress Demo</button>
             </div>
         </div>
 
@@ -223,6 +246,22 @@
 
         <div class="loading" id="loading" style="display: none;">
             <p>Fetching stock data...</p>
+        </div>
+    </div>
+
+    <!-- Custom Popup System -->
+    <div id="customPopupOverlay" class="popup-overlay" style="display: none;">
+        <div id="customPopupContainer" class="popup-container">
+            <div class="popup-header">
+                <h3 id="popupTitle">Popup Title</h3>
+                <button class="popup-close-btn" onclick="customPopup.close()">&times;</button>
+            </div>
+            <div class="popup-content" id="popupContent">
+                <!-- Dynamic content will be inserted here -->
+            </div>
+            <div class="popup-footer" id="popupFooter">
+                <!-- Dynamic buttons will be inserted here -->
+            </div>
         </div>
     </div>
 
