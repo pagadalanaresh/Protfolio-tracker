@@ -230,7 +230,25 @@ const portfolioOperations = {
   async getAll(userId) {
     const client = await pool.connect();
     try {
+      console.log(`📊 Getting portfolio for user ID: ${userId}`);
+      
+      // First check if the table exists and what its structure is
+      const tableCheck = await client.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'portfolio'
+      `);
+      
+      if (tableCheck.rows.length === 0) {
+        console.log('⚠️ Portfolio table does not exist, returning empty array');
+        return [];
+      }
+      
+      console.log(`📋 Portfolio table has ${tableCheck.rows.length} columns`);
+      
       const result = await client.query('SELECT * FROM portfolio WHERE user_id = $1 ORDER BY created_at DESC', [userId]);
+      console.log(`📊 Found ${result.rows.length} portfolio items for user ${userId}`);
+      
       return result.rows.map(row => ({
         id: parseInt(row.id),
         ticker: row.ticker,
@@ -250,6 +268,11 @@ const portfolioOperations = {
         stopLoss: row.stop_loss ? parseFloat(row.stop_loss) : null,
         position: row.position
       }));
+    } catch (error) {
+      console.error(`❌ Error in portfolioOperations.getAll for user ${userId}:`, error);
+      console.error(`❌ Error details:`, error.message);
+      console.error(`❌ Error stack:`, error.stack);
+      throw error;
     } finally {
       client.release();
     }

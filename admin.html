@@ -753,12 +753,24 @@
                 <div style="margin-top: 40px; padding: 20px; background: #fed7d7; border: 2px solid #f56565; border-radius: 10px;">
                     <h3 style="color: #c53030; margin-bottom: 15px;">⚠️ Danger Zone</h3>
                     <p style="color: #c53030; margin-bottom: 15px; font-weight: 600;">
-                        The following action will permanently delete ALL data from the database and cannot be undone!
+                        The following actions will permanently delete data from the database and cannot be undone!
                     </p>
-                    <button onclick="adminPortal.clearDatabase()" 
-                            style="background: #f56565; color: white; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">
-                        🗑️ Clear Entire Database
-                    </button>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button onclick="adminPortal.clearDatabase()" 
+                                style="background: #f56565; color: white; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; flex: 1; min-width: 200px;">
+                            🗑️ Clear Database Data
+                        </button>
+                        <button onclick="adminPortal.resetSchema()" 
+                                style="background: #dc2626; color: white; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; flex: 1; min-width: 200px;">
+                            🚨 Reset Database Schema
+                        </button>
+                    </div>
+                    <div style="margin-top: 10px; padding: 10px; background: #fef2f2; border-radius: 6px;">
+                        <p style="color: #991b1b; font-size: 0.85rem; margin: 0;">
+                            <strong>Clear Data:</strong> Removes all user data but keeps table structure<br>
+                            <strong>Reset Schema:</strong> Drops and recreates all tables (fixes schema issues)
+                        </p>
+                    </div>
                 </div>
             </div>
 
@@ -1538,6 +1550,101 @@ Type "CLEAR DATABASE" to confirm this destructive action:`;
                 } catch (error) {
                     console.error('Error clearing database:', error);
                     this.showError(`Error clearing database: ${error.message}`);
+                } finally {
+                    this.hideLoading();
+                }
+            },
+
+            async resetSchema() {
+                // Show extremely detailed confirmation dialog for schema reset
+                const confirmMessage = `🚨 EXTREMELY CRITICAL WARNING 🚨
+
+Are you absolutely sure you want to RESET THE DATABASE SCHEMA?
+
+This will PERMANENTLY:
+• DROP ALL TABLES (users, portfolio, closed_positions, sessions, admins)
+• DELETE ALL DATA
+• RECREATE ALL TABLES WITH CORRECT SCHEMA
+• RECREATE DEFAULT ADMIN ACCOUNT
+
+This is more destructive than clearing data - it rebuilds the entire database structure!
+
+⚠️  THIS ACTION CANNOT BE UNDONE! ⚠️
+
+This should only be used to fix schema issues (like the portfolio API 500 error).
+
+Type "RESET SCHEMA" to confirm this extremely destructive action:`;
+                
+                const userInput = prompt(confirmMessage);
+                
+                if (userInput !== 'RESET SCHEMA') {
+                    if (userInput !== null) { // User didn't cancel
+                        alert('Schema reset cancelled - incorrect confirmation text');
+                    }
+                    return;
+                }
+
+                // Second confirmation
+                if (!confirm('FINAL CONFIRMATION: This will DROP ALL TABLES and recreate the entire database schema. Are you absolutely certain?')) {
+                    return;
+                }
+
+                // Third confirmation for extra safety
+                if (!confirm('LAST CHANCE: This will destroy the entire database structure and recreate it. This cannot be undone. Proceed?')) {
+                    return;
+                }
+
+                this.showLoading('🚨 Resetting Schema', 'Dropping all tables and recreating database schema...');
+
+                try {
+                    console.log('Attempting to reset entire database schema');
+                    
+                    const response = await fetch('/api/admin/reset-schema', {
+                        method: 'POST'
+                    });
+
+                    console.log(`Reset schema response status: ${response.status}`);
+                    
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error(`Reset schema request failed with status ${response.status}:`, errorText);
+                        throw new Error(`Server error: ${response.status} - ${errorText}`);
+                    }
+
+                    const result = await response.json();
+                    console.log('Reset schema result:', result);
+
+                    if (result.success) {
+                        this.showSuccess(result.message || 'Database schema reset successfully - all tables recreated with correct structure');
+                        
+                        // Show schema reset details if available
+                        if (result.droppedTables && result.recreatedTables) {
+                            console.log('Schema reset details:', result);
+                            const detailsMessage = `Database schema reset successfully!\n\nDropped Tables:\n• ${result.droppedTables.join('\n• ')}\n\nRecreated Tables:\n• ${result.recreatedTables.join('\n• ')}\n\nDefault admin account recreated with credentials: naresh / pagadala`;
+                            alert(detailsMessage);
+                        }
+                        
+                        // Refresh all data
+                        await this.loadDashboard();
+                        await this.loadUsers();
+                        
+                        // Clear selected user
+                        this.selectedUser = null;
+                        document.getElementById('selectedUserInfo').style.display = 'none';
+                        document.getElementById('portfolioData').innerHTML = '<div class="loading">Select a user to view portfolio data</div>';
+                        document.getElementById('closedData').innerHTML = '<div class="loading">Select a user to view closed positions</div>';
+                        
+                        // Show success message about fixing API issues
+                        setTimeout(() => {
+                            alert('Schema reset completed! This should fix any portfolio API 500 errors. You can now test the application.');
+                        }, 2000);
+                    } else {
+                        console.error('Reset schema operation failed:', result.message);
+                        this.showError(result.message || 'Failed to reset database schema');
+                    }
+                } catch (error) {
+                    console.error('Error resetting database schema:', error);
+                    this.showError(`Error resetting database schema: ${error.message}`);
                 } finally {
                     this.hideLoading();
                 }

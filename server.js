@@ -449,8 +449,12 @@ let isDatabaseAvailable = false;
 
 // Get portfolio data (requires authentication and database)
 app.get('/api/portfolio', async (req, res) => {
+  const timestamp = new Date().toISOString();
   try {
+    console.log(`[${timestamp}] Portfolio request received`);
+    
     if (!isDatabaseAvailable) {
+      console.log(`[${timestamp}] Portfolio request failed - Database not available`);
       return res.status(503).json({ 
         success: false, 
         message: 'Database connection required. Please ensure DATABASE_URL is configured.' 
@@ -460,24 +464,52 @@ app.get('/api/portfolio', async (req, res) => {
     // Require authentication for database mode
     const sessionToken = req.cookies.sessionToken;
     if (!sessionToken) {
+      console.log(`[${timestamp}] Portfolio request failed - No session token`);
       return res.status(401).json({ authenticated: false, message: 'Authentication required' });
     }
 
-    const session = await userOperations.findSession(sessionToken);
+    console.log(`[${timestamp}] Session token found, validating...`);
+    
+    let session;
+    try {
+      session = await userOperations.findSession(sessionToken);
+    } catch (sessionError) {
+      console.error(`[${timestamp}] Error finding session:`, sessionError);
+      return res.status(500).json({ success: false, message: 'Session validation error: ' + sessionError.message });
+    }
+    
     if (!session) {
+      console.log(`[${timestamp}] Portfolio request failed - Invalid session token`);
       return res.status(401).json({ authenticated: false, message: 'Invalid session' });
     }
 
-    const portfolio = await portfolioOperations.getAll(session.user_id);
+    console.log(`[${timestamp}] Portfolio request - User: ${session.username}, User ID: ${session.user_id}`);
+    console.log(`[${timestamp}] Session object:`, JSON.stringify(session, null, 2));
+
+    let portfolio;
+    try {
+      portfolio = await portfolioOperations.getAll(session.user_id);
+    } catch (portfolioError) {
+      console.error(`[${timestamp}] Error in portfolioOperations.getAll:`, portfolioError);
+      return res.status(500).json({ success: false, message: 'Portfolio database error: ' + portfolioError.message });
+    }
+    
+    console.log(`[${timestamp}] Retrieved ${portfolio.length} portfolio items for user ${session.username} (ID: ${session.user_id})`);
     res.json(portfolio);
   } catch (error) {
-    console.error('Error fetching portfolio data:', error);
-    res.status(500).json({ success: false, message: 'Error fetching portfolio data' });
+    console.error(`[${timestamp}] Unexpected error in portfolio endpoint:`, error);
+    console.error(`[${timestamp}] Error stack:`, error.stack);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Internal server error in portfolio endpoint: ' + error.message,
+      error: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 
 // Save portfolio data (requires authentication and database)
 app.post('/api/portfolio', async (req, res) => {
+  const timestamp = new Date().toISOString();
   try {
     if (!isDatabaseAvailable) {
       return res.status(503).json({ 
@@ -489,24 +521,31 @@ app.post('/api/portfolio', async (req, res) => {
     // Require authentication for database mode
     const sessionToken = req.cookies.sessionToken;
     if (!sessionToken) {
+      console.log(`[${timestamp}] Portfolio save failed - No session token`);
       return res.status(401).json({ authenticated: false, message: 'Authentication required' });
     }
 
     const session = await userOperations.findSession(sessionToken);
     if (!session) {
+      console.log(`[${timestamp}] Portfolio save failed - Invalid session token`);
       return res.status(401).json({ authenticated: false, message: 'Invalid session' });
     }
 
+    console.log(`[${timestamp}] Portfolio save - User: ${session.username}, User ID: ${session.user_id}, Items: ${req.body.length}`);
+    console.log(`[${timestamp}] Session object:`, JSON.stringify(session, null, 2));
+
     await portfolioOperations.saveAll(session.user_id, req.body);
+    console.log(`[${timestamp}] Portfolio saved successfully for user ${session.username} (ID: ${session.user_id})`);
     res.json({ success: true, message: 'Portfolio saved successfully' });
   } catch (error) {
-    console.error('Error saving portfolio data:', error);
-    res.status(500).json({ success: false, message: 'Error saving portfolio data' });
+    console.error(`[${timestamp}] Error saving portfolio data:`, error);
+    res.status(500).json({ success: false, message: 'Error saving portfolio data: ' + error.message });
   }
 });
 
 // Get closed positions data (requires authentication and database)
 app.get('/api/closed-positions', async (req, res) => {
+  const timestamp = new Date().toISOString();
   try {
     if (!isDatabaseAvailable) {
       return res.status(503).json({ 
@@ -518,24 +557,30 @@ app.get('/api/closed-positions', async (req, res) => {
     // Require authentication for database mode
     const sessionToken = req.cookies.sessionToken;
     if (!sessionToken) {
+      console.log(`[${timestamp}] Closed positions request failed - No session token`);
       return res.status(401).json({ authenticated: false, message: 'Authentication required' });
     }
 
     const session = await userOperations.findSession(sessionToken);
     if (!session) {
+      console.log(`[${timestamp}] Closed positions request failed - Invalid session token`);
       return res.status(401).json({ authenticated: false, message: 'Invalid session' });
     }
 
+    console.log(`[${timestamp}] Closed positions request - User: ${session.username}, User ID: ${session.user_id}`);
+
     const closedPositions = await closedPositionsOperations.getAll(session.user_id);
+    console.log(`[${timestamp}] Retrieved ${closedPositions.length} closed positions for user ${session.username} (ID: ${session.user_id})`);
     res.json(closedPositions);
   } catch (error) {
-    console.error('Error fetching closed positions data:', error);
-    res.status(500).json({ success: false, message: 'Error fetching closed positions data' });
+    console.error(`[${timestamp}] Error fetching closed positions data:`, error);
+    res.status(500).json({ success: false, message: 'Error fetching closed positions data: ' + error.message });
   }
 });
 
 // Save closed positions data (requires authentication and database)
 app.post('/api/closed-positions', async (req, res) => {
+  const timestamp = new Date().toISOString();
   try {
     if (!isDatabaseAvailable) {
       return res.status(503).json({ 
@@ -547,19 +592,24 @@ app.post('/api/closed-positions', async (req, res) => {
     // Require authentication for database mode
     const sessionToken = req.cookies.sessionToken;
     if (!sessionToken) {
+      console.log(`[${timestamp}] Closed positions save failed - No session token`);
       return res.status(401).json({ authenticated: false, message: 'Authentication required' });
     }
 
     const session = await userOperations.findSession(sessionToken);
     if (!session) {
+      console.log(`[${timestamp}] Closed positions save failed - Invalid session token`);
       return res.status(401).json({ authenticated: false, message: 'Invalid session' });
     }
 
+    console.log(`[${timestamp}] Closed positions save - User: ${session.username}, User ID: ${session.user_id}, Items: ${req.body.length}`);
+
     await closedPositionsOperations.saveAll(session.user_id, req.body);
+    console.log(`[${timestamp}] Closed positions saved successfully for user ${session.username} (ID: ${session.user_id})`);
     res.json({ success: true, message: 'Closed positions saved successfully' });
   } catch (error) {
-    console.error('Error saving closed positions data:', error);
-    res.status(500).json({ success: false, message: 'Error saving closed positions data' });
+    console.error(`[${timestamp}] Error saving closed positions data:`, error);
+    res.status(500).json({ success: false, message: 'Error saving closed positions data: ' + error.message });
   }
 });
 
@@ -1210,6 +1260,91 @@ app.post('/api/admin/clear-database', authenticateAdmin, async (req, res) => {
   } catch (error) {
     console.error(`[${timestamp}] ❌ Error clearing database:`, error);
     res.status(500).json({ success: false, message: 'Error clearing database: ' + error.message });
+  }
+});
+
+// Reset entire database schema (EXTREMELY DANGEROUS - requires admin authentication)
+app.post('/api/admin/reset-schema', authenticateAdmin, async (req, res) => {
+  const timestamp = new Date().toISOString();
+  try {
+    if (!isDatabaseAvailable) {
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Database connection required' 
+      });
+    }
+
+    console.log(`[${timestamp}] 🚨 EXTREMELY CRITICAL: Database schema reset request by admin: ${req.admin.username}`);
+
+    const client = await require('./database').pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+      console.log(`[${timestamp}] Starting database schema reset transaction`);
+      
+      // Get list of all tables before dropping
+      const tablesResult = await client.query(`
+        SELECT tablename 
+        FROM pg_tables 
+        WHERE schemaname = 'public' 
+        AND tablename NOT LIKE 'pg_%'
+      `);
+      
+      const tableNames = tablesResult.rows.map(row => row.tablename);
+      console.log(`[${timestamp}] Found tables to drop:`, tableNames);
+      
+      // Drop all tables in correct order (handle foreign key dependencies)
+      const tablesToDrop = [
+        'user_sessions',
+        'admin_sessions', 
+        'portfolio',
+        'closed_positions',
+        'users',
+        'admins'
+      ];
+      
+      for (const tableName of tablesToDrop) {
+        if (tableNames.includes(tableName)) {
+          await client.query(`DROP TABLE IF EXISTS ${tableName} CASCADE`);
+          console.log(`[${timestamp}] Dropped table: ${tableName}`);
+        }
+      }
+      
+      // Drop any remaining tables
+      for (const tableName of tableNames) {
+        if (!tablesToDrop.includes(tableName)) {
+          await client.query(`DROP TABLE IF EXISTS ${tableName} CASCADE`);
+          console.log(`[${timestamp}] Dropped additional table: ${tableName}`);
+        }
+      }
+      
+      await client.query('COMMIT');
+      console.log(`[${timestamp}] ✅ Database schema reset transaction completed successfully`);
+      
+      // Now reinitialize the database with correct schema
+      console.log(`[${timestamp}] 🏗️ Reinitializing database with correct schema...`);
+      await initializeDatabase();
+      
+      // Recreate default admin
+      console.log(`[${timestamp}] 👤 Recreating default admin...`);
+      await createDefaultAdmin();
+      
+      res.json({ 
+        success: true, 
+        message: 'Database schema reset successfully - all tables dropped and recreated with correct schema',
+        droppedTables: tableNames,
+        recreatedTables: ['users', 'portfolio', 'closed_positions', 'user_sessions', 'admins', 'admin_sessions']
+      });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.log(`[${timestamp}] Database schema reset transaction rolled back due to error`);
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error(`[${timestamp}] ❌ Error resetting database schema:`, error);
+    res.status(500).json({ success: false, message: 'Error resetting database schema: ' + error.message });
   }
 });
 
