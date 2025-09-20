@@ -41,7 +41,7 @@ async function initializeDatabase() {
     // Create portfolio table with user_id foreign key
     await client.query(`
       CREATE TABLE IF NOT EXISTS portfolio (
-        id SERIAL PRIMARY KEY,
+        id BIGINT,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         ticker VARCHAR(50) NOT NULL,
         name VARCHAR(255) NOT NULL,
@@ -61,14 +61,14 @@ async function initializeDatabase() {
         position VARCHAR(20),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, ticker)
+        PRIMARY KEY (id, user_id)
       )
     `);
 
     // Create closed_positions table with user_id foreign key
     await client.query(`
       CREATE TABLE IF NOT EXISTS closed_positions (
-        id SERIAL PRIMARY KEY,
+        id BIGINT,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         ticker VARCHAR(50) NOT NULL,
         name VARCHAR(255) NOT NULL,
@@ -87,7 +87,29 @@ async function initializeDatabase() {
         final_pl_percent DECIMAL(8,4) NOT NULL,
         closed_date DATE NOT NULL,
         holding_period VARCHAR(50),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id, user_id)
+      )
+    `);
+
+    // Create watchlist table with user_id foreign key
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS watchlist (
+        id BIGINT,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        ticker VARCHAR(50) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        sector VARCHAR(100),
+        current_price DECIMAL(10,2),
+        day_change DECIMAL(8,2),
+        day_change_percent DECIMAL(8,4),
+        target_price DECIMAL(10,2),
+        stop_loss DECIMAL(10,2),
+        notes TEXT,
+        added_date DATE NOT NULL,
+        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id, user_id)
       )
     `);
 
@@ -96,30 +118,6 @@ async function initializeDatabase() {
       CREATE TABLE IF NOT EXISTS user_sessions (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        session_token VARCHAR(255) UNIQUE NOT NULL,
-        expires_at TIMESTAMP NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create admin table for admin authentication
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS admins (
-        id SERIAL PRIMARY KEY,
-        username VARCHAR(50) UNIQUE NOT NULL,
-        email VARCHAR(255) UNIQUE NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
-        is_active BOOLEAN DEFAULT true,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create admin sessions table
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS admin_sessions (
-        id SERIAL PRIMARY KEY,
-        admin_id INTEGER REFERENCES admins(id) ON DELETE CASCADE,
         session_token VARCHAR(255) UNIQUE NOT NULL,
         expires_at TIMESTAMP NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -230,25 +228,7 @@ const portfolioOperations = {
   async getAll(userId) {
     const client = await pool.connect();
     try {
-      console.log(`📊 Getting portfolio for user ID: ${userId}`);
-      
-      // First check if the table exists and what its structure is
-      const tableCheck = await client.query(`
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name = 'portfolio'
-      `);
-      
-      if (tableCheck.rows.length === 0) {
-        console.log('⚠️ Portfolio table does not exist, returning empty array');
-        return [];
-      }
-      
-      console.log(`📋 Portfolio table has ${tableCheck.rows.length} columns`);
-      
       const result = await client.query('SELECT * FROM portfolio WHERE user_id = $1 ORDER BY created_at DESC', [userId]);
-      console.log(`📊 Found ${result.rows.length} portfolio items for user ${userId}`);
-      
       return result.rows.map(row => ({
         id: parseInt(row.id),
         ticker: row.ticker,
@@ -268,11 +248,6 @@ const portfolioOperations = {
         stopLoss: row.stop_loss ? parseFloat(row.stop_loss) : null,
         position: row.position
       }));
-    } catch (error) {
-      console.error(`❌ Error in portfolioOperations.getAll for user ${userId}:`, error);
-      console.error(`❌ Error details:`, error.message);
-      console.error(`❌ Error stack:`, error.stack);
-      throw error;
     } finally {
       client.release();
     }
@@ -287,33 +262,16 @@ const portfolioOperations = {
       // Clear existing data for this user
       await client.query('DELETE FROM portfolio WHERE user_id = $1', [userId]);
       
-      // Insert new data (let database auto-generate IDs)
+      // Insert new data
       for (const item of portfolioData) {
         await client.query(`
           INSERT INTO portfolio (
-            user_id, ticker, name, buy_price, current_price, quantity, invested, 
+            id, user_id, ticker, name, buy_price, current_price, quantity, invested, 
             current_value, purchase_date, last_updated, pl, pl_percent, 
             day_change, day_change_percent, target_price, stop_loss, position
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-          ON CONFLICT (user_id, ticker) DO UPDATE SET
-            name = EXCLUDED.name,
-            buy_price = EXCLUDED.buy_price,
-            current_price = EXCLUDED.current_price,
-            quantity = EXCLUDED.quantity,
-            invested = EXCLUDED.invested,
-            current_value = EXCLUDED.current_value,
-            purchase_date = EXCLUDED.purchase_date,
-            last_updated = EXCLUDED.last_updated,
-            pl = EXCLUDED.pl,
-            pl_percent = EXCLUDED.pl_percent,
-            day_change = EXCLUDED.day_change,
-            day_change_percent = EXCLUDED.day_change_percent,
-            target_price = EXCLUDED.target_price,
-            stop_loss = EXCLUDED.stop_loss,
-            position = EXCLUDED.position,
-            updated_at = CURRENT_TIMESTAMP
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         `, [
-          userId, item.ticker, item.name, item.buyPrice, item.currentPrice,
+          item.id, userId, item.ticker, item.name, item.buyPrice, item.currentPrice,
           item.quantity, item.invested, item.currentValue, item.purchaseDate,
           item.lastUpdated, item.pl, item.plPercent, item.dayChange,
           item.dayChangePercent, item.targetPrice, item.stopLoss, item.position
@@ -371,17 +329,17 @@ const closedPositionsOperations = {
       // Clear existing data for this user
       await client.query('DELETE FROM closed_positions WHERE user_id = $1', [userId]);
       
-      // Insert new data (let database auto-generate IDs)
+      // Insert new data
       for (const item of closedPositionsData) {
         await client.query(`
           INSERT INTO closed_positions (
-            user_id, ticker, name, buy_price, current_price, quantity, invested,
+            id, user_id, ticker, name, buy_price, current_price, quantity, invested,
             current_value, purchase_date, last_updated, pl, pl_percent,
             close_price, close_value, final_pl, final_pl_percent,
             closed_date, holding_period
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
         `, [
-          userId, item.ticker, item.name, item.buyPrice, item.currentPrice,
+          item.id, userId, item.ticker, item.name, item.buyPrice, item.currentPrice,
           item.quantity, item.invested, item.currentValue, item.purchaseDate,
           item.lastUpdated, item.pl, item.plPercent, item.closePrice,
           item.closeValue, item.finalPL, item.finalPLPercent, item.closedDate,
@@ -399,127 +357,59 @@ const closedPositionsOperations = {
   }
 };
 
-// Admin authentication operations
-const adminOperations = {
-  // Create new admin
-  async createAdmin(username, email, passwordHash) {
+// Watchlist operations
+const watchlistOperations = {
+  // Get all watchlist items for a user
+  async getAll(userId) {
     const client = await pool.connect();
     try {
-      const result = await client.query(`
-        INSERT INTO admins (username, email, password_hash)
-        VALUES ($1, $2, $3)
-        RETURNING id, username, email, is_active, created_at
-      `, [username, email, passwordHash]);
-      return result.rows[0];
+      const result = await client.query('SELECT * FROM watchlist WHERE user_id = $1 ORDER BY added_date DESC', [userId]);
+      return result.rows.map(row => ({
+        id: parseInt(row.id),
+        ticker: row.ticker,
+        name: row.name,
+        sector: row.sector,
+        currentPrice: row.current_price ? parseFloat(row.current_price) : null,
+        dayChange: row.day_change ? parseFloat(row.day_change) : null,
+        dayChangePercent: row.day_change_percent ? parseFloat(row.day_change_percent) : null,
+        targetPrice: row.target_price ? parseFloat(row.target_price) : null,
+        stopLoss: row.stop_loss ? parseFloat(row.stop_loss) : null,
+        notes: row.notes,
+        addedDate: row.added_date,
+        lastUpdated: row.last_updated
+      }));
     } finally {
       client.release();
     }
   },
 
-  // Find admin by username
-  async findByUsername(username) {
+  // Save all watchlist items for a user (replace existing)
+  async saveAll(userId, watchlistItems) {
     const client = await pool.connect();
     try {
-      const result = await client.query('SELECT * FROM admins WHERE username = $1 AND is_active = true', [username]);
-      return result.rows[0] || null;
-    } finally {
-      client.release();
-    }
-  },
-
-  // Find admin by email
-  async findByEmail(email) {
-    const client = await pool.connect();
-    try {
-      const result = await client.query('SELECT * FROM admins WHERE email = $1 AND is_active = true', [email]);
-      return result.rows[0] || null;
-    } finally {
-      client.release();
-    }
-  },
-
-  // Create admin session
-  async createSession(adminId, sessionToken, expiresAt) {
-    const client = await pool.connect();
-    try {
-      await client.query(`
-        INSERT INTO admin_sessions (admin_id, session_token, expires_at)
-        VALUES ($1, $2, $3)
-      `, [adminId, sessionToken, expiresAt]);
-    } finally {
-      client.release();
-    }
-  },
-
-  // Find admin session
-  async findSession(sessionToken) {
-    const client = await pool.connect();
-    try {
-      const result = await client.query(`
-        SELECT s.*, a.username, a.email, a.is_active
-        FROM admin_sessions s 
-        JOIN admins a ON s.admin_id = a.id 
-        WHERE s.session_token = $1 AND s.expires_at > NOW() AND a.is_active = true
-      `, [sessionToken]);
-      return result.rows[0] || null;
-    } finally {
-      client.release();
-    }
-  },
-
-  // Delete admin session
-  async deleteSession(sessionToken) {
-    const client = await pool.connect();
-    try {
-      await client.query('DELETE FROM admin_sessions WHERE session_token = $1', [sessionToken]);
-    } finally {
-      client.release();
-    }
-  },
-
-  // Clean expired admin sessions
-  async cleanExpiredSessions() {
-    const client = await pool.connect();
-    try {
-      await client.query('DELETE FROM admin_sessions WHERE expires_at <= NOW()');
-    } finally {
-      client.release();
-    }
-  },
-
-  // Get all admins
-  async getAllAdmins() {
-    const client = await pool.connect();
-    try {
-      const result = await client.query(`
-        SELECT id, username, email, is_active, created_at, updated_at 
-        FROM admins 
-        ORDER BY created_at DESC
-      `);
-      return result.rows;
-    } finally {
-      client.release();
-    }
-  },
-
-  // Check if any admin exists
-  async hasAnyAdmin() {
-    const client = await pool.connect();
-    try {
-      const result = await client.query('SELECT COUNT(*) as count FROM admins WHERE is_active = true');
-      return parseInt(result.rows[0].count) > 0;
-    } finally {
-      client.release();
-    }
-  },
-
-  // Deactivate admin
-  async deactivateAdmin(adminId) {
-    const client = await pool.connect();
-    try {
-      await client.query('UPDATE admins SET is_active = false, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [adminId]);
-      // Also delete all sessions for this admin
-      await client.query('DELETE FROM admin_sessions WHERE admin_id = $1', [adminId]);
+      await client.query('BEGIN');
+      
+      // Delete existing watchlist items for this user
+      await client.query('DELETE FROM watchlist WHERE user_id = $1', [userId]);
+      
+      // Insert new watchlist items
+      for (const item of watchlistItems) {
+        await client.query(`
+          INSERT INTO watchlist (
+            id, user_id, ticker, name, sector, current_price, day_change, 
+            day_change_percent, target_price, stop_loss, notes, added_date, last_updated
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        `, [
+          item.id, userId, item.ticker || item.symbol, item.name, item.sector,
+          item.currentPrice, item.dayChange, item.dayChangePercent,
+          item.targetPrice, item.stopLoss, item.notes, item.addedDate, item.lastUpdated
+        ]);
+      }
+      
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
     } finally {
       client.release();
     }
@@ -533,5 +423,5 @@ module.exports = {
   userOperations,
   portfolioOperations,
   closedPositionsOperations,
-  adminOperations
+  watchlistOperations
 };

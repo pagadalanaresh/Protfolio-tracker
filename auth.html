@@ -971,7 +971,7 @@
             }
 
             try {
-                const response = await fetch('/api/auth/login', {
+                const response = await fetch('api/auth/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(loginData)
@@ -981,7 +981,7 @@
 
                 if (response.ok) {
                     showSuccess('✅ Login successful! Redirecting to your portfolio...');
-                    setTimeout(() => window.location.href = '/', 1500);
+                    setTimeout(() => window.location.href = 'index-new.html', 1500);
                 } else {
                     showError(result.message || 'Login failed. Please check your credentials.');
                 }
@@ -1021,7 +1021,7 @@
             };
 
             try {
-                const response = await fetch('/api/auth/signup', {
+                const response = await fetch('api/auth/signup', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(signupData)
@@ -1044,11 +1044,11 @@
         });
 
         // Check if user is already authenticated
-        fetch('/api/auth/check')
+        fetch('api/auth/check')
             .then(response => response.json())
             .then(result => {
                 if (result.authenticated) {
-                    window.location.href = '/';
+                    window.location.href = 'index-new.html';
                 }
             })
             .catch(() => {});

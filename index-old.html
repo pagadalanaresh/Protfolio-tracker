@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Indian Stock Portfolio Tracker</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-content">
+                <div class="header-title">
+                    <h1>🇮🇳 Indian Stock Portfolio Tracker</h1>
+                    <p>Track your NSE investments with real-time data</p>
+                </div>
+                <div class="user-section" id="userSection" style="display: none;">
+                    <div class="user-info">
+                        <span class="user-welcome">Welcome, <strong id="username"></strong>!</span>
+                        <button class="logout-btn" onclick="authHandler.logout()">Logout</button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="market-indices">
+            <div class="index-card">
+                <h3>NIFTY 50</h3>
+                <div class="index-value">
+                    <span id="niftyValue">Loading...</span>
+                    <span id="niftyChange" class="index-change">--</span>
+                </div>
+            </div>
+            <div class="index-card">
+                <h3>SENSEX</h3>
+                <div class="index-value">
+                    <span id="sensexValue">Loading...</span>
+                    <span id="sensexChange" class="index-change">--</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Popup Demo Buttons -->
+        <div style="text-align: center; margin: 20px 0; padding: 20px; background: rgba(255,255,255,0.1); border-radius: 15px; backdrop-filter: blur(10px);">
+            <h3 style="color: white; margin-bottom: 15px;">🎯 Custom Popup Demos</h3>
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;">
+                <button onclick="customPopup.showPortfolioSummary()" style="background: #38a169 !important;">📊 Portfolio Summary</button>
+                <button onclick="customPopup.showHelp()" style="background: #3182ce !important;">❓ Help Guide</button>
+                <button onclick="demoAlert()" style="background: #e53e3e !important;">🚨 Alert Demo</button>
+                <button onclick="demoConfirm()" style="background: #d69e2e !important;">❓ Confirm Demo</button>
+                <button onclick="demoForm()" style="background: #805ad5 !important;">📝 Form Demo</button>
+                <button onclick="demoProgress()" style="background: #319795 !important;">⏳ Progress Demo</button>
+            </div>
+        </div>
+
+        <div class="portfolio-summary">
+            <div class="section-header">
+                <h2>Portfolio Summary</h2>
+                <button type="button" class="toggle-section-btn" onclick="portfolioTracker.toggleSection('portfolio-summary')">
+                    <span id="toggle-portfolio-summary">−</span>
+                </button>
+            </div>
+            <div class="section-content" id="content-portfolio-summary">
+                <div class="summary-cards">
+                <div class="card">
+                    <h3>Total Invested</h3>
+                    <p id="totalInvested">₹0.00</p>
+                </div>
+                <div class="card">
+                    <h3>Current Value</h3>
+                    <p id="currentValue">₹0.00</p>
+                </div>
+                <div class="card">
+                    <h3>Total P&L</h3>
+                    <p id="totalPL">₹0.00</p>
+                </div>
+                <div class="card">
+                    <h3>Total P&L %</h3>
+                    <p id="totalPLPercent">0.00%</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="input-section">
+            <div class="form-header">
+                <h2>Add Stock to Portfolio</h2>
+                <button type="button" id="toggleFormBtn" class="toggle-form-btn" onclick="portfolioTracker.toggleForm()">
+                    <span id="toggleIcon">−</span>
+                </button>
+            </div>
+            <form id="stockForm" class="form-content">
+                <div class="form-group">
+                    <label for="ticker">Stock Ticker (NSE):</label>
+                    <input type="text" id="ticker" placeholder="e.g., RELIANCE, TCS, INFY" required>
+                    <small>Enter NSE stock symbol</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="buyPrice">Buy Price (₹):</label>
+                    <input type="number" id="buyPrice" step="0.01" placeholder="0.00" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="targetPrice">Target Price (₹):</label>
+                    <input type="number" id="targetPrice" step="0.01" placeholder="0.00">
+                    <small>Optional target selling price</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="stopLoss">Stop Loss (₹):</label>
+                    <input type="number" id="stopLoss" step="0.01" placeholder="0.00">
+                    <small>Optional stop loss price</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="quantity">Quantity:</label>
+                    <input type="number" id="quantity" placeholder="0" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="position">Position Type:</label>
+                    <select id="position" required>
+                        <option value="Long">Long</option>
+                        <option value="Medium" selected>Medium</option>
+                        <option value="Short">Short</option>
+                    </select>
+                    <small>Investment position type</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="purchaseDate">Purchase Date:</label>
+                    <input type="date" id="purchaseDate" required>
+                    <small>Date when you purchased the stock</small>
+                </div>
+                
+                <div class="form-buttons">
+                    <button type="submit">Add to Portfolio</button>
+                    <button type="button" id="cancelEdit" onclick="portfolioTracker.cancelEdit()" style="display: none; background: #e2e8f0; color: #4a5568; margin-left: 10px;">Cancel</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="portfolio-table">
+            <div class="section-header">
+                <h2>Holdings</h2>
+                <button type="button" class="toggle-section-btn" onclick="portfolioTracker.toggleSection('holdings')">
+                    <span id="toggle-holdings">−</span>
+                </button>
+            </div>
+            <div class="section-content" id="content-holdings">
+                <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th onclick="portfolioTracker.sortTable('name')" style="cursor: pointer;">
+                                Stock <span id="sort-name" class="sort-arrow">↕</span>
+                            </th>
+                            <th onclick="portfolioTracker.sortTable('ticker')" style="cursor: pointer;">
+                                Ticker <span id="sort-ticker" class="sort-arrow">↕</span>
+                            </th>
+                            <th onclick="portfolioTracker.sortTable('quantity')" style="cursor: pointer;">
+                                Quantity <span id="sort-quantity" class="sort-arrow">↕</span>
+                            </th>
+                            <th onclick="portfolioTracker.sortTable('position')" style="cursor: pointer;">
+                                Position <span id="sort-position" class="sort-arrow">↕</span>
+                            </th>
+                            <th onclick="portfolioTracker.sortTable('buyPrice')" style="cursor: pointer;">
+                                Buy Price <span id="sort-buyPrice" class="sort-arrow">↕</span>
+                            </th>
+                            <th onclick="portfolioTracker.sortTable('currentPrice')" style="cursor: pointer;">
+                                Current Price <span id="sort-currentPrice" class="sort-arrow">↕</span>
+                            </th>
+                            <th onclick="portfolioTracker.sortTable('targetPrice')" style="cursor: pointer;">
+                                Target Price <span id="sort-targetPrice" class="sort-arrow">↕</span>
+                            </th>
+                            <th onclick="portfolioTracker.sortTable('stopLoss')" style="cursor: pointer;">
+                                Stop Loss <span id="sort-stopLoss" class="sort-arrow">↕</span>
+                            </th>
+                            <th onclick="portfolioTracker.sortTable('purchaseDate')" style="cursor: pointer;">
+                                Purchase Date <span id="sort-purchaseDate" class="sort-arrow">↕</span>
+                            </th>
+                            <th onclick="portfolioTracker.sortTable('holdingPeriod')" style="cursor: pointer;">
+                                Holding Period <span id="sort-holdingPeriod" class="sort-arrow">↕</span>
+                            </th>
+                            <th onclick="portfolioTracker.sortTable('invested')" style="cursor: pointer;">
+                                Invested <span id="sort-invested" class="sort-arrow">↕</span>
+                            </th>
+                            <th onclick="portfolioTracker.sortTable('currentValue')" style="cursor: pointer;">
+                                Current Value <span id="sort-currentValue" class="sort-arrow">↕</span>
+                            </th>
+                            <th onclick="portfolioTracker.sortTable('pl')" style="cursor: pointer;">
+                                P&L <span id="sort-pl" class="sort-arrow">↕</span>
+                            </th>
+                            <th onclick="portfolioTracker.sortTable('plPercent')" style="cursor: pointer;">
+                                P&L % <span id="sort-plPercent" class="sort-arrow">↕</span>
+                            </th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="portfolioBody">
+                        <!-- Portfolio data will be inserted here -->
+                    </tbody>
+                </table>
+            </div>
+                <div id="holdingsTotals" class="totals-section">
+                    <!-- Holdings totals will be inserted here -->
+                </div>
+            </div>
+        </div>
+
+        <div class="closed-positions-section">
+            <div class="section-header">
+                <h2>Closed Positions</h2>
+                <button type="button" class="toggle-section-btn" onclick="portfolioTracker.toggleSection('closed-positions')">
+                    <span id="toggle-closed-positions">−</span>
+                </button>
+            </div>
+            <div class="section-content" id="content-closed-positions">
+                <div id="closedPositionsContainer">
+                    <!-- Closed positions will be inserted here -->
+                </div>
+            </div>
+        </div>
+
+        <div class="charts-section">
+            <div class="section-header">
+                <h2>Portfolio Analytics</h2>
+                <button type="button" class="toggle-section-btn" onclick="portfolioTracker.toggleSection('portfolio-analytics')">
+                    <span id="toggle-portfolio-analytics">−</span>
+                </button>
+            </div>
+            <div class="section-content" id="content-portfolio-analytics">
+                <div class="charts-container">
+                <div class="chart-item">
+                    <h3>Portfolio Distribution</h3>
+                    <canvas id="distributionChart"></canvas>
+                </div>
+                <div class="chart-item">
+                    <h3>Gains vs Losses</h3>
+                    <canvas id="gainsLossesChart"></canvas>
+                </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="loading" id="loading" style="display: none;">
+            <p>Fetching stock data...</p>
+        </div>
+    </div>
+
+    <!-- Custom Popup System -->
+    <div id="customPopupOverlay" class="popup-overlay" style="display: none;">
+        <div id="customPopupContainer" class="popup-container">
+            <div class="popup-header">
+                <h3 id="popupTitle">Popup Title</h3>
+                <button class="popup-close-btn" onclick="customPopup.close()">&times;</button>
+            </div>
+            <div class="popup-content" id="popupContent">
+                <!-- Dynamic content will be inserted here -->
+            </div>
+            <div class="popup-footer" id="popupFooter">
+                <!-- Dynamic buttons will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
