@@ -981,7 +981,7 @@
 
                 if (response.ok) {
                     showSuccess('✅ Login successful! Redirecting to your portfolio...');
-                    setTimeout(() => window.location.href = 'index-new.html', 1500);
+                    setTimeout(() => window.location.href = 'index-redesigned.html', 1500);
                 } else {
                     showError(result.message || 'Login failed. Please check your credentials.');
                 }
@@ -1048,7 +1048,7 @@
             .then(response => response.json())
             .then(result => {
                 if (result.authenticated) {
-                    window.location.href = 'index-new.html';
+                    window.location.href = 'index-redesigned.html';
                 }
             })
             .catch(() => {});
