@@ -104,7 +104,7 @@
                     </ul>
                 </div>
                 
-                <div class="sidebar-section">
+                <!-- <div class="sidebar-section">
                     <h3>Markets</h3>
                     <ul class="sidebar-menu">
                         <li class="menu-item" data-section="market-overview">
@@ -120,7 +120,7 @@
                             <span>Stock Screener</span>
                         </li>
                     </ul>
-                </div>
+                </div> -->
 
                 <div class="sidebar-section">
                     <div class="portfolio-summary-widget">
@@ -404,26 +404,7 @@
                                     <canvas id="sectorChart"></canvas>
                                 </div>
                                 <div class="sector-legend" id="sectorLegend">
-                                    <div class="legend-item">
-                                        <div class="legend-color" style="background: #3b82f6;"></div>
-                                        <span class="legend-label">Technology</span>
-                                        <span class="legend-value">35%</span>
-                                    </div>
-                                    <div class="legend-item">
-                                        <div class="legend-color" style="background: #10b981;"></div>
-                                        <span class="legend-label">Banking</span>
-                                        <span class="legend-value">25%</span>
-                                    </div>
-                                    <div class="legend-item">
-                                        <div class="legend-color" style="background: #f59e0b;"></div>
-                                        <span class="legend-label">Healthcare</span>
-                                        <span class="legend-value">20%</span>
-                                    </div>
-                                    <div class="legend-item">
-                                        <div class="legend-color" style="background: #ef4444;"></div>
-                                        <span class="legend-label">Energy</span>
-                                        <span class="legend-value">20%</span>
-                                    </div>
+                                    <!-- Sector legend will be populated dynamically by JavaScript -->
                                 </div>
                             </div>
                         </div>
@@ -477,36 +458,28 @@
                             </div>
                         </div>
 
-                        <!-- Market News Widget -->
-                        <div class="dashboard-card market-news">
+                        <!-- Top Holdings Widget -->
+                        <div class="dashboard-card top-holdings">
                             <div class="card-header">
                                 <div class="card-title">
-                                    <h3>Market News</h3>
-                                    <span class="card-subtitle">Latest market updates</span>
+                                    <h3>Top Holdings</h3>
+                                    <span class="card-subtitle">Your largest positions</span>
                                 </div>
                                 <div class="card-actions">
-                                    <button class="card-action-btn">
-                                        <i class="fas fa-external-link-alt"></i>
+                                    <button class="card-action-btn" onclick="portfolioProDemo.showSection('holdings')">
+                                        <i class="fas fa-arrow-right"></i>
                                     </button>
                                 </div>
                             </div>
                             <div class="card-content">
-                                <div class="news-list">
-                                    <div class="news-item">
-                                        <div class="news-title">Nifty 50 hits new all-time high</div>
-                                        <div class="news-subtitle">Index crosses 24,400 mark amid strong buying</div>
-                                        <div class="news-time">30m ago</div>
-                                    </div>
-                                    <div class="news-item">
-                                        <div class="news-title">RBI keeps repo rate unchanged</div>
-                                        <div class="news-subtitle">Monetary policy committee maintains status quo</div>
-                                        <div class="news-time">2h ago</div>
-                                    </div>
-                                    <div class="news-item">
-                                        <div class="news-title">IT sector shows strong momentum</div>
-                                        <div class="news-subtitle">TCS, Infosys lead the rally</div>
-                                        <div class="news-time">4h ago</div>
-                                    </div>
+                                <div class="holdings-list" id="topHoldingsList">
+                                    <!-- Top 5 holdings will be populated by JavaScript -->
+                                </div>
+                                <div class="view-more-section">
+                                    <button class="btn btn-outline" onclick="portfolioProDemo.showSection('holdings')">
+                                        <i class="fas fa-chart-pie"></i>
+                                        View All Holdings
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -640,67 +613,118 @@
                 </section>
             </div>
 
+            <!-- Transactions Section -->
+            <div id="transactions-section" class="content-section">
+                <section class="transactions-section">
+                    <div class="section-header">
+                        <h2>Transaction History</h2>
+                        <div class="section-actions">
+                            <div class="search-container">
+                                <i class="fas fa-search"></i>
+                                <input type="text" placeholder="Search transactions..." id="transactionsSearch" disabled>
+                            </div>
+                            <div class="filter-tabs">
+                                <button class="filter-tab active disabled" data-filter="all" disabled>All</button>
+                                <button class="filter-tab disabled" data-filter="buy" disabled>Buy</button>
+                                <button class="filter-tab disabled" data-filter="sell" disabled>Sell</button>
+                            </div>
+                            <button class="btn btn-outline disabled" id="exportTransactionsBtn" disabled>
+                                <i class="fas fa-download"></i>
+                                Export
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Coming Soon Message -->
+                    <div class="coming-soon-section">
+                        <div class="coming-soon-card">
+                            <div class="coming-soon-icon">
+                                <i class="fas fa-rocket"></i>
+                            </div>
+                            <div class="coming-soon-content">
+                                <h3>Transaction History - Coming Soon!</h3>
+                                <p>We're working on bringing you comprehensive transaction tracking with the following features:</p>
+                                
+                                <div class="features-grid">
+                                    <div class="feature-item">
+                                        <i class="fas fa-list-alt"></i>
+                                        <span>Complete buy/sell transaction history</span>
+                                    </div>
+                                    <div class="feature-item">
+                                        <i class="fas fa-filter"></i>
+                                        <span>Transaction filtering and search</span>
+                                    </div>
+                                    <div class="feature-item">
+                                        <i class="fas fa-file-export"></i>
+                                        <span>Export transactions to CSV/Excel</span>
+                                    </div>
+                                    <div class="feature-item">
+                                        <i class="fas fa-chart-line"></i>
+                                        <span>Transaction analytics and insights</span>
+                                    </div>
+                                    <div class="feature-item">
+                                        <i class="fas fa-calculator"></i>
+                                        <span>Tax reporting and calculations</span>
+                                    </div>
+                                </div>
+                                
+                                <p class="coming-soon-footer">Stay tuned for these exciting features in our next update!</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
             <!-- Analytics Section -->
             <div id="analytics-section" class="content-section">
                 <section class="analytics-section">
                     <div class="section-header">
-                        <h2>Portfolio Analytics</h2>
+                        <h2>Advanced Portfolio Analytics</h2>
                         <div class="analytics-controls">
                             <div class="time-range-selector">
-                                <button class="range-btn active" data-range="1M">1M</button>
-                                <button class="range-btn" data-range="3M">3M</button>
-                                <button class="range-btn" data-range="6M">6M</button>
-                                <button class="range-btn" data-range="1Y">1Y</button>
-                                <button class="range-btn" data-range="ALL">ALL</button>
+                                <button class="range-btn active disabled" data-range="1M" disabled>1M</button>
+                                <button class="range-btn disabled" data-range="3M" disabled>3M</button>
+                                <button class="range-btn disabled" data-range="6M" disabled>6M</button>
+                                <button class="range-btn disabled" data-range="1Y" disabled>1Y</button>
+                                <button class="range-btn disabled" data-range="ALL" disabled>ALL</button>
                             </div>
                         </div>
                     </div>
-                    
-                    <div class="analytics-grid">
-                        <div class="analytics-card performance-chart">
-                            <div class="card-header">
-                                <h3>Portfolio Performance</h3>
-                                <div class="performance-stats">
-                                    <div class="stat">
-                                        <span class="stat-label">Total Return</span>
-                                        <span class="stat-value positive">+13.2%</span>
-                                    </div>
-                                    <div class="stat">
-                                        <span class="stat-label">Annualized</span>
-                                        <span class="stat-value positive">+18.5%</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="chart-container">
-                                <canvas id="performanceChart"></canvas>
-                            </div>
-                        </div>
 
-                        <div class="analytics-card risk-metrics">
-                            <div class="card-header">
-                                <h3>Risk Metrics</h3>
+                    <!-- Coming Soon Message for Advanced Analytics -->
+                    <div class="coming-soon-section">
+                        <div class="coming-soon-card">
+                            <div class="coming-soon-icon">
+                                <i class="fas fa-chart-bar"></i>
                             </div>
-                            <div class="metrics-grid">
-                                <div class="metric-item">
-                                    <div class="metric-label">Volatility</div>
-                                    <div class="metric-value">15.2%</div>
-                                    <div class="metric-indicator low"></div>
+                            <div class="coming-soon-content">
+                                <h3>Advanced Analytics - Coming Soon!</h3>
+                                <p>We're developing powerful analytics tools including:</p>
+                                
+                                <div class="analytics-features">
+                                    <div class="feature-category">
+                                        <h4><i class="fas fa-chart-line"></i> Advanced Portfolio Analytics</h4>
+                                        <ul>
+                                            <li>Portfolio performance tracking</li>
+                                            <li>Risk analysis and metrics</li>
+                                            <li>Asset allocation optimization</li>
+                                            <li>Goal-based investment tracking</li>
+                                        </ul>
+                                    </div>
+                                    
+                                    <div class="feature-category">
+                                        <h4><i class="fas fa-shield-alt"></i> Risk & Performance Metrics</h4>
+                                        <ul>
+                                            <li>Portfolio volatility analysis</li>
+                                            <li>Sharpe ratio calculation</li>
+                                            <li>Maximum drawdown tracking</li>
+                                            <li>Beta coefficient analysis</li>
+                                            <li>Value at Risk (VaR) calculations</li>
+                                        </ul>
+                                    </div>
                                 </div>
-                                <div class="metric-item">
-                                    <div class="metric-label">Sharpe Ratio</div>
-                                    <div class="metric-value">1.24</div>
-                                    <div class="metric-indicator good"></div>
-                                </div>
-                                <div class="metric-item">
-                                    <div class="metric-label">Max Drawdown</div>
-                                    <div class="metric-value">-8.5%</div>
-                                    <div class="metric-indicator moderate"></div>
-                                </div>
-                                <div class="metric-item">
-                                    <div class="metric-label">Beta</div>
-                                    <div class="metric-value">0.95</div>
-                                    <div class="metric-indicator good"></div>
-                                </div>
+                                
+                                <p class="coming-soon-footer">These advanced features will help you make more informed investment decisions!</p>
                             </div>
                         </div>
                     </div>

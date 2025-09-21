@@ -529,8 +529,8 @@ class PortfolioProDemo {
         
         try {
             const allSymbols = [
-                ...this.dummyData.portfolio.map(stock => stock.symbol),
-                ...this.dummyData.watchlist.map(stock => stock.symbol)
+                ...this.dummyData.portfolio.map(stock => stock.ticker || stock.symbol),
+                ...this.dummyData.watchlist.map(stock => stock.ticker || stock.symbol)
             ];
             
             const uniqueSymbols = [...new Set(allSymbols)];
@@ -543,7 +543,8 @@ class PortfolioProDemo {
                     
                     // Update portfolio stocks
                     this.dummyData.portfolio.forEach(stock => {
-                        if (stock.symbol === symbol) {
+                        const stockSymbol = stock.ticker || stock.symbol;
+                        if (stockSymbol === symbol) {
                             stock.currentPrice = stockData.currentPrice;
                             stock.dayChange = stockData.dayChange;
                             stock.dayChangePercent = stockData.dayChangePercent;
@@ -557,7 +558,8 @@ class PortfolioProDemo {
                     
                     // Update watchlist stocks
                     this.dummyData.watchlist.forEach(stock => {
-                        if (stock.symbol === symbol) {
+                        const stockSymbol = stock.ticker || stock.symbol;
+                        if (stockSymbol === symbol) {
                             stock.currentPrice = stockData.currentPrice;
                             stock.dayChange = stockData.dayChange;
                             stock.dayChangePercent = stockData.dayChangePercent;
@@ -686,22 +688,108 @@ class PortfolioProDemo {
 
     // Setup responsive navigation
     setupResponsiveNavigation() {
-        // Add hamburger menu for mobile
-        const navBrand = document.querySelector('.nav-brand');
-        if (navBrand && window.innerWidth <= 1200) {
-            const hamburger = document.createElement('button');
-            hamburger.className = 'hamburger-btn';
-            hamburger.innerHTML = '<i class="fas fa-bars"></i>';
-            hamburger.addEventListener('click', () => {
-                document.querySelector('.sidebar').classList.toggle('open');
-            });
-            navBrand.appendChild(hamburger);
-        }
-
+        // Add hamburger menu for mobile/tablet
+        this.createHamburgerMenu();
+        
+        // Add sidebar overlay for mobile
+        this.createSidebarOverlay();
+        
         // Handle window resize
         window.addEventListener('resize', () => {
             this.handleResize();
         });
+    }
+
+    // Create hamburger menu button
+    createHamburgerMenu() {
+        const navBrand = document.querySelector('.nav-brand');
+        if (!navBrand) return;
+
+        // Remove existing hamburger if it exists
+        const existingHamburger = document.querySelector('.hamburger-btn');
+        if (existingHamburger) {
+            existingHamburger.remove();
+        }
+
+        // Only add hamburger on mobile/tablet screens
+        if (window.innerWidth <= 1200) {
+            const hamburger = document.createElement('button');
+            hamburger.className = 'hamburger-btn';
+            hamburger.innerHTML = '<i class="fas fa-bars"></i>';
+            hamburger.setAttribute('aria-label', 'Toggle navigation menu');
+            
+            // Add click event to toggle sidebar
+            hamburger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggleSidebar();
+            });
+            
+            navBrand.appendChild(hamburger);
+        }
+    }
+
+    // Create sidebar overlay for mobile
+    createSidebarOverlay() {
+        // Remove existing overlay if it exists
+        const existingOverlay = document.querySelector('.sidebar-overlay');
+        if (existingOverlay) {
+            existingOverlay.remove();
+        }
+
+        // Create overlay element
+        const overlay = document.createElement('div');
+        overlay.className = 'sidebar-overlay';
+        
+        // Add click event to close sidebar when clicking overlay
+        overlay.addEventListener('click', () => {
+            this.closeSidebar();
+        });
+        
+        // Insert overlay after sidebar
+        const sidebar = document.querySelector('.sidebar');
+        if (sidebar && sidebar.parentNode) {
+            sidebar.parentNode.insertBefore(overlay, sidebar.nextSibling);
+        }
+    }
+
+    // Toggle sidebar open/close
+    toggleSidebar() {
+        const sidebar = document.querySelector('.sidebar');
+        const overlay = document.querySelector('.sidebar-overlay');
+        
+        if (sidebar && overlay) {
+            const isOpen = sidebar.classList.contains('open');
+            
+            if (isOpen) {
+                this.closeSidebar();
+            } else {
+                this.openSidebar();
+            }
+        }
+    }
+
+    // Open sidebar
+    openSidebar() {
+        const sidebar = document.querySelector('.sidebar');
+        const overlay = document.querySelector('.sidebar-overlay');
+        
+        if (sidebar && overlay) {
+            sidebar.classList.add('open');
+            overlay.classList.add('active');
+            document.body.style.overflow = 'hidden'; // Prevent background scrolling
+        }
+    }
+
+    // Close sidebar
+    closeSidebar() {
+        const sidebar = document.querySelector('.sidebar');
+        const overlay = document.querySelector('.sidebar-overlay');
+        
+        if (sidebar && overlay) {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('active');
+            document.body.style.overflow = ''; // Restore scrolling
+        }
     }
 
     // Handle window resize
@@ -771,6 +859,9 @@ class PortfolioProDemo {
             case 'closed-positions':
                 this.renderClosedPositions();
                 break;
+            case 'transactions':
+                this.renderTransactions();
+                break;
             case 'analytics':
                 this.renderAnalytics();
                 break;
@@ -785,7 +876,7 @@ class PortfolioProDemo {
         this.updateMarketIndices();
         this.updateTopPerformers();
         this.updateRecentActivity();
-        this.updateMarketNews();
+        this.updateTopHoldings();
         this.updateSidebarStats();
     }
 
@@ -941,18 +1032,38 @@ class PortfolioProDemo {
         `).join('');
     }
 
-    // Update market news
-    updateMarketNews() {
-        const newsList = document.querySelector('.news-list');
-        if (newsList) {
-            newsList.innerHTML = this.dummyData.news.map(news => `
-                <div class="news-item">
-                    <div class="news-title">${news.title}</div>
-                    <div class="news-subtitle">${news.subtitle}</div>
-                    <div class="news-time">${news.time}</div>
-                </div>
-            `).join('');
+    // Update top holdings
+    updateTopHoldings() {
+        const topHoldingsList = document.getElementById('topHoldingsList');
+        if (!topHoldingsList) return;
+
+        // Check if portfolio is empty
+        if (this.dummyData.portfolio.length === 0) {
+            topHoldingsList.innerHTML = this.renderEmptyState('holdings-small');
+            return;
         }
+
+        // Get top 5 holdings by current value
+        const topHoldings = [...this.dummyData.portfolio]
+            .sort((a, b) => b.currentValue - a.currentValue)
+            .slice(0, 5);
+
+        topHoldingsList.innerHTML = topHoldings.map(stock => `
+            <div class="holding-item" onclick="portfolioProDemo.showSection('holdings')">
+                <div class="holding-item-info">
+                    <div class="holding-item-symbol">${stock.symbol}</div>
+                    <div class="holding-item-name">${stock.name}</div>
+                </div>
+                <div class="holding-item-stats">
+                    <div class="holding-item-value">
+                        <div class="holding-item-current">${this.formatCurrency(stock.currentValue)}</div>
+                        <div class="holding-item-pl ${stock.plPercent >= 0 ? 'positive' : 'negative'}">
+                            ${stock.plPercent >= 0 ? '+' : ''}${stock.plPercent.toFixed(2)}%
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
     }
 
     // Update sidebar quick stats
@@ -1062,6 +1173,16 @@ class PortfolioProDemo {
                     </div>
                 </div>
             `,
+            sectorLegend: `
+                <div class="empty-state-small">
+                    <div class="empty-state-icon-small">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="empty-state-text">
+                        <p>Add stocks to see sector allocation</p>
+                    </div>
+                </div>
+            `,
             activity: `
                 <div class="empty-state-small">
                     <div class="empty-state-icon-small">
@@ -1069,6 +1190,16 @@ class PortfolioProDemo {
                     </div>
                     <div class="empty-state-text">
                         <p>Your trading activity will appear here</p>
+                    </div>
+                </div>
+            `,
+            'holdings-small': `
+                <div class="empty-state-small">
+                    <div class="empty-state-icon-small">
+                        <i class="fas fa-chart-pie"></i>
+                    </div>
+                    <div class="empty-state-text">
+                        <p>Add stocks to see your top holdings</p>
                     </div>
                 </div>
             `
@@ -1221,6 +1352,12 @@ class PortfolioProDemo {
         // Update closed positions summary
         this.updateClosedPositionsSummary();
 
+        // Check if closed positions is empty
+        if (this.dummyData.closedPositions.length === 0) {
+            closedPositionsGrid.innerHTML = this.renderEmptyState('closedPositions');
+            return;
+        }
+
         closedPositionsGrid.innerHTML = this.dummyData.closedPositions.map(position => `
             <div class="closed-position-card ${position.pl >= 0 ? 'profit' : 'loss'}" data-position-id="${position.id}">
                 <div class="closed-header">
@@ -1312,6 +1449,13 @@ class PortfolioProDemo {
                 <span>${averageReturn >= 0 ? '+' : ''}${averageReturn.toFixed(1)}% average return</span>
             `;
         }
+    }
+
+    // Render transactions section
+    renderTransactions() {
+        console.log('Rendering transactions section - Coming Soon!');
+        // The transactions section is already rendered in HTML with coming soon message
+        // No additional JavaScript rendering needed for the coming soon state
     }
 
     // Render analytics section
@@ -1435,6 +1579,11 @@ class PortfolioProDemo {
         const ctx = canvas.getContext('2d');
         const sectorData = this.calculateSectorAllocation();
 
+        // Destroy existing chart if it exists
+        if (this.charts.sectorChart) {
+            this.charts.sectorChart.destroy();
+        }
+
         this.charts.sectorChart = new Chart(ctx, {
             type: 'doughnut',
             data: {
@@ -1465,6 +1614,9 @@ class PortfolioProDemo {
                 cutout: '70%'
             }
         });
+
+        // Update sector legend
+        this.updateSectorLegend(sectorData);
     }
 
     // Initialize index charts
@@ -1597,6 +1749,11 @@ class PortfolioProDemo {
         const sectorTotals = {};
         const totalValue = this.dummyData.portfolio.reduce((sum, stock) => sum + stock.currentValue, 0);
         
+        // If no portfolio data, return empty
+        if (totalValue === 0) {
+            return { labels: [], values: [] };
+        }
+        
         this.dummyData.portfolio.forEach(stock => {
             if (!sectorTotals[stock.sector]) {
                 sectorTotals[stock.sector] = 0;
@@ -1610,6 +1767,36 @@ class PortfolioProDemo {
         );
         
         return { labels, values };
+    }
+
+    // Update sector legend
+    updateSectorLegend(sectorData) {
+        const sectorLegend = document.getElementById('sectorLegend');
+        if (!sectorLegend) return;
+
+        // If no data, show empty state
+        if (sectorData.labels.length === 0) {
+            sectorLegend.innerHTML = this.renderEmptyState('sectorLegend');
+            return;
+        }
+
+        // Color palette for sectors
+        const colors = [
+            '#3b82f6',
+            '#10b981',
+            '#f59e0b',
+            '#ef4444',
+            '#030108ff',
+            '#06b6d4'
+        ];
+
+        sectorLegend.innerHTML = sectorData.labels.map((sector, index) => `
+            <div class="legend-item">
+                <div class="legend-color" style="background: ${colors[index % colors.length]};"></div>
+                <span class="legend-label">${sector}</span>
+                <span class="legend-value">${sectorData.values[index]}%</span>
+            </div>
+        `).join('');
     }
 
     // Generate performance data
@@ -1779,8 +1966,8 @@ class PortfolioProDemo {
             button.style.transform = '';
         }, 150);
         
-        // Show notification for demo purposes
-        this.showNotification(`${buttonText} functionality coming soon!`, 'info');
+        // // Show notification for demo purposes
+        // this.showNotification(`${buttonText} functionality coming soon!`, 'info');
     }
 
     // Handle card hover effects
@@ -1983,6 +2170,13 @@ class PortfolioProDemo {
         // Refresh button event
         document.getElementById('refreshBtn')?.addEventListener('click', () => this.refreshStockPrices());
 
+        // Export and Settings button events
+        document.getElementById('exportBtn')?.addEventListener('click', () => this.showNotification('Export functionality coming soon!', 'info'));
+        document.getElementById('settingsBtn')?.addEventListener('click', () => this.showNotification('Settings functionality coming soon!', 'info'));
+        
+        // Analyze Portfolio button event
+        document.getElementById('analyzeBtn')?.addEventListener('click', () => this.showNotification('Analyze Portfolio functionality coming soon!', 'info'));
+
         // Modal close events
         document.getElementById('closeBuyFromWatchlistModal')?.addEventListener('click', () => this.hideBuyFromWatchlistModal());
         document.getElementById('cancelBuyFromWatchlist')?.addEventListener('click', () => this.hideBuyFromWatchlistModal());
@@ -2039,6 +2233,262 @@ class PortfolioProDemo {
             if (purchaseDateInput) {
                 purchaseDateInput.value = today;
             }
+            
+            // Initialize stock symbol autocomplete
+            this.initializeStockAutocomplete();
+        }
+    }
+
+    // Initialize stock symbol autocomplete
+    initializeStockAutocomplete() {
+        const stockSymbolInput = document.getElementById('stockSymbol');
+        if (!stockSymbolInput) return;
+
+        // Remove existing event listeners
+        stockSymbolInput.removeEventListener('input', this.handleStockSymbolInput);
+        
+        // Add new event listener
+        stockSymbolInput.addEventListener('input', (e) => this.handleStockSymbolInput(e));
+        
+        // Create suggestions dropdown if it doesn't exist
+        let suggestionsDropdown = document.getElementById('stockSuggestions');
+        if (!suggestionsDropdown) {
+            suggestionsDropdown = document.createElement('div');
+            suggestionsDropdown.id = 'stockSuggestions';
+            suggestionsDropdown.className = 'stock-suggestions';
+            stockSymbolInput.parentNode.appendChild(suggestionsDropdown);
+        }
+    }
+
+    // Handle stock symbol input for autocomplete
+    async handleStockSymbolInput(e) {
+        const input = e.target;
+        const query = input.value.toUpperCase().trim();
+        const suggestionsDropdown = document.getElementById('stockSuggestions');
+        
+        if (query.length < 3) {
+            suggestionsDropdown.style.display = 'none';
+            return;
+        }
+
+        // Show loading in suggestions
+        suggestionsDropdown.innerHTML = '<div class="suggestion-loading">Searching stocks...</div>';
+        suggestionsDropdown.style.display = 'block';
+
+        try {
+            const suggestions = await this.searchStocks(query);
+            this.displayStockSuggestions(suggestions, suggestionsDropdown);
+        } catch (error) {
+            console.error('Error fetching stock suggestions:', error);
+            suggestionsDropdown.innerHTML = '<div class="suggestion-error">Error fetching suggestions</div>';
+        }
+    }
+
+    // Search for stocks using Yahoo Finance API with multiple fallbacks
+    async searchStocks(query) {
+        // Try multiple approaches for better reliability
+        const searchMethods = [
+            () => this.searchStocksYahooSearch(query),
+            () => this.searchStocksYahooQuote(query),
+            () => this.searchStocksAlternative(query)
+        ];
+
+        for (const searchMethod of searchMethods) {
+            try {
+                const results = await searchMethod();
+                if (results && results.length > 0) {
+                    console.log(`Stock search successful with method: ${searchMethod.name}`);
+                    return results;
+                }
+            } catch (error) {
+                console.warn(`Search method ${searchMethod.name} failed:`, error.message);
+                continue;
+            }
+        }
+
+        // If all methods fail, return popular Indian stocks as fallback
+        return this.getFallbackStocks(query);
+    }
+
+    // Primary search method using Yahoo Finance search API - NSE only
+    async searchStocksYahooSearch(query) {
+        const proxyUrl = 'https://api.allorigins.win/raw?url=';
+        const searchUrl = `https://query1.finance.yahoo.com/v1/finance/search?q=${query}.NS&quotesCount=10&newsCount=0&enableFuzzyQuery=false`;
+        const fullUrl = proxyUrl + encodeURIComponent(searchUrl);
+        
+        const response = await fetch(fullUrl, {
+            method: 'GET',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.quotes && data.quotes.length > 0) {
+            return data.quotes
+                .filter(quote => {
+                    const symbol = quote.symbol || '';
+                    // Only NSE stocks (.NS suffix)
+                    return symbol.endsWith('.NS') && 
+                           (quote.quoteType === 'EQUITY' || !quote.quoteType) &&
+                           (quote.exchange === 'NSI' || quote.exchange === 'NSE' || !quote.exchange);
+                })
+                .slice(0, 5)
+                .map(quote => ({
+                    symbol: quote.symbol.replace('.NS', ''),
+                    name: quote.longname || quote.shortname || quote.symbol,
+                    exchange: 'NSE'
+                }));
+        }
+        
+        return [];
+    }
+
+    // Alternative search using quote API - NSE only
+    async searchStocksYahooQuote(query) {
+        const proxyUrl = 'https://api.allorigins.win/raw?url=';
+        const nseSymbol = `${query}.NS`; // Only search NSE
+        
+        try {
+            const quoteUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${nseSymbol}`;
+            const fullUrl = proxyUrl + encodeURIComponent(quoteUrl);
+            
+            const response = await fetch(fullUrl);
+            if (response.ok) {
+                const data = await response.json();
+                
+                if (data.quoteResponse && data.quoteResponse.result && data.quoteResponse.result.length > 0) {
+                    return data.quoteResponse.result
+                        .filter(quote => quote.symbol && quote.symbol.endsWith('.NS'))
+                        .map(quote => ({
+                            symbol: quote.symbol.replace('.NS', ''),
+                            name: quote.longName || quote.shortName || quote.displayName || quote.symbol,
+                            exchange: 'NSE'
+                        }));
+                }
+            }
+        } catch (error) {
+            console.warn(`NSE quote search failed for ${nseSymbol}:`, error.message);
+        }
+        
+        return [];
+    }
+
+    // Alternative search method with different proxy
+    async searchStocksAlternative(query) {
+        try {
+            const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
+            const searchUrl = `https://query1.finance.yahoo.com/v1/finance/search?q=${query}.NS&quotesCount=5`;
+            const fullUrl = proxyUrl + searchUrl;
+            
+            const response = await fetch(fullUrl, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.quotes && data.quotes.length > 0) {
+                    return data.quotes
+                        .filter(quote => quote.symbol && quote.symbol.endsWith('.NS'))
+                        .map(quote => ({
+                            symbol: quote.symbol.replace('.NS', ''),
+                            name: quote.longname || quote.shortname || quote.symbol,
+                            exchange: 'NSE'
+                        }));
+                }
+            }
+        } catch (error) {
+            console.warn('Alternative search method failed:', error.message);
+        }
+        
+        return [];
+    }
+
+    // Fallback with popular Indian stocks
+    getFallbackStocks(query) {
+        const popularStocks = [
+            { symbol: 'RELIANCE', name: 'Reliance Industries Limited' },
+            { symbol: 'TCS', name: 'Tata Consultancy Services Limited' },
+            { symbol: 'HDFCBANK', name: 'HDFC Bank Limited' },
+            { symbol: 'INFY', name: 'Infosys Limited' },
+            { symbol: 'HINDUNILVR', name: 'Hindustan Unilever Limited' },
+            { symbol: 'ICICIBANK', name: 'ICICI Bank Limited' },
+            { symbol: 'KOTAKBANK', name: 'Kotak Mahindra Bank Limited' },
+            { symbol: 'BHARTIARTL', name: 'Bharti Airtel Limited' },
+            { symbol: 'ITC', name: 'ITC Limited' },
+            { symbol: 'SBIN', name: 'State Bank of India' },
+            { symbol: 'ASIANPAINT', name: 'Asian Paints Limited' },
+            { symbol: 'MARUTI', name: 'Maruti Suzuki India Limited' },
+            { symbol: 'AXISBANK', name: 'Axis Bank Limited' },
+            { symbol: 'LT', name: 'Larsen & Toubro Limited' },
+            { symbol: 'WIPRO', name: 'Wipro Limited' },
+            { symbol: 'ULTRACEMCO', name: 'UltraTech Cement Limited' },
+            { symbol: 'TITAN', name: 'Titan Company Limited' },
+            { symbol: 'NESTLEIND', name: 'Nestle India Limited' },
+            { symbol: 'POWERGRID', name: 'Power Grid Corporation of India Limited' },
+            { symbol: 'NTPC', name: 'NTPC Limited' }
+        ];
+
+        // Filter based on query
+        const filtered = popularStocks.filter(stock => 
+            stock.symbol.toLowerCase().includes(query.toLowerCase()) ||
+            stock.name.toLowerCase().includes(query.toLowerCase())
+        );
+
+        return filtered.slice(0, 5);
+    }
+
+    // Display stock suggestions
+    displayStockSuggestions(suggestions, dropdown) {
+        if (suggestions.length === 0) {
+            dropdown.innerHTML = '<div class="suggestion-empty">No stocks found</div>';
+            return;
+        }
+
+        dropdown.innerHTML = suggestions.map(stock => `
+            <div class="suggestion-item" onclick="portfolioProDemo.selectStock('${stock.symbol}', '${stock.name}')">
+                <div class="suggestion-symbol">${stock.symbol}</div>
+                <div class="suggestion-name">${stock.name}</div>
+            </div>
+        `).join('');
+    }
+
+    // Select stock from suggestions and populate form
+    async selectStock(symbol, name) {
+        const stockSymbolInput = document.getElementById('stockSymbol');
+        const suggestionsDropdown = document.getElementById('stockSuggestions');
+        
+        // Set the symbol in input
+        stockSymbolInput.value = symbol;
+        
+        // Hide suggestions
+        suggestionsDropdown.style.display = 'none';
+        
+        // Show loading overlay
+        this.showLoadingOverlay('Fetching stock data...');
+        
+        try {
+            // Fetch current stock data
+            const stockData = await this.fetchStockData(symbol);
+            
+            // Populate form with current price as buy price
+            document.getElementById('buyPrice').value = stockData.currentPrice.toFixed(2);
+            
+            // Show success notification
+            this.showNotification(`Stock data loaded for ${symbol}`, 'success');
+            
+        } catch (error) {
+            console.error('Error fetching stock data:', error);
+            this.showNotification('Error fetching stock data', 'error');
+        } finally {
+            this.hideLoadingOverlay();
         }
     }
 
@@ -2119,7 +2569,8 @@ class PortfolioProDemo {
             
             const newStock = {
                 id: Date.now(),
-                symbol: symbol,
+                ticker: symbol,
+                symbol: symbol, // Keep for backward compatibility
                 name: stockData.name,
                 sector: stockData.sector,
                 quantity: quantity,
