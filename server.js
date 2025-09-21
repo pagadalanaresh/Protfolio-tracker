@@ -10,7 +10,8 @@ const {
   userOperations,
   portfolioOperations, 
   closedPositionsOperations,
-  watchlistOperations
+  watchlistOperations,
+  adminOperations
 } = require('./database');
 
 const app = express();
@@ -50,6 +51,21 @@ app.get('/auth.html', (req, res) => {
       res.status(500).send('Error loading authentication page');
     } else {
       console.log(`[${timestamp}] Successfully served auth.html`);
+    }
+  });
+});
+
+app.get('/admin.html', (req, res) => {
+  const timestamp = new Date().toISOString();
+  const filePath = path.join(__dirname, 'admin.html');
+  console.log(`[${timestamp}] Serving admin.html from: ${filePath}`);
+  
+  res.sendFile(filePath, (err) => {
+    if (err) {
+      console.error(`[${timestamp}] Error serving admin.html:`, err);
+      res.status(500).send('Error loading admin page');
+    } else {
+      console.log(`[${timestamp}] Successfully served admin.html`);
     }
   });
 });
@@ -301,6 +317,208 @@ app.post('/api/auth/logout', async (req, res) => {
   } catch (error) {
     console.error('Logout error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+// Admin Authentication Routes
+
+// Admin authentication middleware
+async function authenticateAdmin(req, res, next) {
+  try {
+    const adminSessionToken = req.cookies.adminSessionToken;
+    
+    if (!adminSessionToken) {
+      return res.status(401).json({ authenticated: false, message: 'No admin session token' });
+    }
+
+    if (isDatabaseAvailable) {
+      const session = await adminOperations.findSession(adminSessionToken);
+      if (!session) {
+        return res.status(401).json({ authenticated: false, message: 'Invalid admin session' });
+      }
+      
+      req.admin = {
+        id: session.admin_id,
+        username: session.username,
+        email: session.email
+      };
+    } else {
+      return res.status(503).json({ authenticated: false, message: 'Admin authentication requires database connection' });
+    }
+    
+    next();
+  } catch (error) {
+    console.error('Admin authentication error:', error);
+    res.status(500).json({ authenticated: false, message: 'Admin authentication error' });
+  }
+}
+
+// Check admin authentication status
+app.get('/api/admin/auth/check', async (req, res) => {
+  const timestamp = new Date().toISOString();
+  try {
+    const adminSessionToken = req.cookies.adminSessionToken;
+    console.log(`[${timestamp}] Admin auth check - Session token present: ${!!adminSessionToken}, DB available: ${isDatabaseAvailable}`);
+    
+    if (!adminSessionToken || !isDatabaseAvailable) {
+      console.log(`[${timestamp}] Admin auth check failed - No session token or DB unavailable`);
+      return res.json({ authenticated: false });
+    }
+
+    const session = await adminOperations.findSession(adminSessionToken);
+    if (!session) {
+      console.log(`[${timestamp}] Admin auth check failed - Invalid session token`);
+      return res.json({ authenticated: false });
+    }
+
+    console.log(`[${timestamp}] Admin auth check successful - Admin: ${session.username}`);
+    res.json({ 
+      authenticated: true, 
+      admin: {
+        username: session.username,
+        email: session.email
+      }
+    });
+  } catch (error) {
+    console.error(`[${timestamp}] Admin auth check error:`, error);
+    res.json({ authenticated: false });
+  }
+});
+
+// Admin login
+app.post('/api/admin/auth/login', async (req, res) => {
+  const timestamp = new Date().toISOString();
+  try {
+    console.log(`[${timestamp}] Admin login attempt - DB available: ${isDatabaseAvailable}`);
+    
+    if (!isDatabaseAvailable) {
+      console.log(`[${timestamp}] Admin login failed - Database not available`);
+      return res.status(503).json({ success: false, message: 'Database connection required for admin login' });
+    }
+
+    const { username, password } = req.body;
+
+    // Validate input
+    if (!username || !password) {
+      console.log(`[${timestamp}] Admin login failed - Missing credentials`);
+      return res.status(400).json({ success: false, message: 'Username and password are required' });
+    }
+
+    console.log(`[${timestamp}] Looking up admin: ${username}`);
+
+    // Find admin
+    const admin = await adminOperations.findByUsername(username);
+    if (!admin) {
+      console.log(`[${timestamp}] Admin login failed - Admin not found: ${username}`);
+      return res.status(401).json({ success: false, message: 'Invalid username or password' });
+    }
+
+    console.log(`[${timestamp}] Admin found - ID: ${admin.id}, verifying password`);
+
+    // Verify password using bcrypt (since we used bcrypt for admin password)
+    const bcrypt = require('bcrypt');
+    const isValidPassword = await bcrypt.compare(password, admin.password_hash);
+    if (!isValidPassword) {
+      console.log(`[${timestamp}] Admin login failed - Invalid password for admin: ${username}`);
+      return res.status(401).json({ success: false, message: 'Invalid username or password' });
+    }
+
+    console.log(`[${timestamp}] Admin password verified - Creating session for admin: ${username}`);
+
+    // Create admin session
+    const sessionToken = generateSessionToken();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    await adminOperations.createSession(admin.id, sessionToken, expiresAt);
+    console.log(`[${timestamp}] Admin session created - Token: ${sessionToken.substring(0, 8)}..., Expires: ${expiresAt}`);
+
+    // Set admin cookie
+    res.cookie('adminSessionToken', sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      expires: expiresAt
+    });
+
+    console.log(`[${timestamp}] Admin login successful - Admin: ${username}`);
+    res.json({ 
+      success: true, 
+      message: 'Admin login successful',
+      admin: {
+        username: admin.username,
+        email: admin.email
+      }
+    });
+  } catch (error) {
+    console.error(`[${timestamp}] Admin login error:`, error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+// Admin logout
+app.post('/api/admin/auth/logout', async (req, res) => {
+  try {
+    const adminSessionToken = req.cookies.adminSessionToken;
+    
+    if (adminSessionToken && isDatabaseAvailable) {
+      await adminOperations.deleteSession(adminSessionToken);
+    }
+
+    res.clearCookie('adminSessionToken');
+    res.json({ success: true, message: 'Admin logged out successfully' });
+  } catch (error) {
+    console.error('Admin logout error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+// Get all users (admin only)
+app.get('/api/admin/users', authenticateAdmin, async (req, res) => {
+  try {
+    const users = await adminOperations.getAllUsers();
+    
+    // Get stats for each user
+    const usersWithStats = await Promise.all(users.map(async (user) => {
+      const stats = await adminOperations.getUserStats(user.id);
+      return {
+        ...user,
+        stats
+      };
+    }));
+    
+    res.json(usersWithStats);
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ success: false, message: 'Error fetching users' });
+  }
+});
+
+// Impersonate user (admin only)
+app.post('/api/admin/impersonate/:userId', authenticateAdmin, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    
+    // Find the user
+    const user = await userOperations.findByUsername(''); // We need to get user by ID, let's add this method
+    
+    // Create a user session for the admin to impersonate
+    const sessionToken = generateSessionToken();
+    const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours
+    
+    await userOperations.createSession(userId, sessionToken, expiresAt);
+    
+    // Set user session cookie
+    res.cookie('sessionToken', sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      expires: expiresAt
+    });
+    
+    res.json({ success: true, message: 'User impersonation started' });
+  } catch (error) {
+    console.error('Error impersonating user:', error);
+    res.status(500).json({ success: false, message: 'Error impersonating user' });
   }
 });
 

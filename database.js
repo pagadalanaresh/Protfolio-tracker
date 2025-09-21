@@ -124,6 +124,42 @@ async function initializeDatabase() {
       )
     `);
 
+    // Create admin table for admin authentication
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS admins (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(50) UNIQUE NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create admin sessions table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS admin_sessions (
+        id SERIAL PRIMARY KEY,
+        admin_id INTEGER REFERENCES admins(id) ON DELETE CASCADE,
+        session_token VARCHAR(255) UNIQUE NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Insert default admin user if not exists
+    const adminCheck = await client.query('SELECT id FROM admins WHERE username = $1', ['naresh']);
+    if (adminCheck.rows.length === 0) {
+      const bcrypt = require('bcrypt');
+      const hashedPassword = await bcrypt.hash('pagadala', 10);
+      await client.query(`
+        INSERT INTO admins (username, email, password_hash)
+        VALUES ($1, $2, $3)
+      `, ['naresh', 'naresh@admin.com', hashedPassword]);
+      console.log('✅ Default admin user created: naresh/pagadala');
+    }
+
     console.log('✅ Database tables initialized successfully');
   } catch (error) {
     console.error('❌ Error initializing database:', error.message);
@@ -231,7 +267,8 @@ const portfolioOperations = {
       const result = await client.query('SELECT * FROM portfolio WHERE user_id = $1 ORDER BY created_at DESC', [userId]);
       return result.rows.map(row => ({
         id: parseInt(row.id),
-        ticker: row.ticker,
+        symbol: row.ticker, // Map ticker to symbol for frontend consistency
+        ticker: row.ticker, // Keep ticker for backward compatibility
         name: row.name,
         buyPrice: parseFloat(row.buy_price),
         currentPrice: row.current_price ? parseFloat(row.current_price) : null,
@@ -297,7 +334,8 @@ const closedPositionsOperations = {
       const result = await client.query('SELECT * FROM closed_positions WHERE user_id = $1 ORDER BY closed_date DESC', [userId]);
       return result.rows.map(row => ({
         id: parseInt(row.id),
-        ticker: row.ticker,
+        symbol: row.ticker, // Map ticker to symbol for frontend consistency
+        ticker: row.ticker, // Keep ticker for backward compatibility
         name: row.name,
         buyPrice: parseFloat(row.buy_price),
         currentPrice: row.current_price ? parseFloat(row.current_price) : null,
@@ -366,7 +404,8 @@ const watchlistOperations = {
       const result = await client.query('SELECT * FROM watchlist WHERE user_id = $1 ORDER BY added_date DESC', [userId]);
       return result.rows.map(row => ({
         id: parseInt(row.id),
-        ticker: row.ticker,
+        symbol: row.ticker, // Map ticker to symbol for frontend consistency
+        ticker: row.ticker, // Keep ticker for backward compatibility
         name: row.name,
         sector: row.sector,
         currentPrice: row.current_price ? parseFloat(row.current_price) : null,
@@ -416,6 +455,97 @@ const watchlistOperations = {
   }
 };
 
+// Admin operations
+const adminOperations = {
+  // Find admin by username
+  async findByUsername(username) {
+    const client = await pool.connect();
+    try {
+      const result = await client.query('SELECT * FROM admins WHERE username = $1 AND is_active = true', [username]);
+      return result.rows[0] || null;
+    } finally {
+      client.release();
+    }
+  },
+
+  // Create admin session
+  async createSession(adminId, sessionToken, expiresAt) {
+    const client = await pool.connect();
+    try {
+      await client.query(`
+        INSERT INTO admin_sessions (admin_id, session_token, expires_at)
+        VALUES ($1, $2, $3)
+      `, [adminId, sessionToken, expiresAt]);
+    } finally {
+      client.release();
+    }
+  },
+
+  // Find admin session
+  async findSession(sessionToken) {
+    const client = await pool.connect();
+    try {
+      const result = await client.query(`
+        SELECT s.*, a.username, a.email 
+        FROM admin_sessions s 
+        JOIN admins a ON s.admin_id = a.id 
+        WHERE s.session_token = $1 AND s.expires_at > NOW() AND a.is_active = true
+      `, [sessionToken]);
+      return result.rows[0] || null;
+    } finally {
+      client.release();
+    }
+  },
+
+  // Delete admin session
+  async deleteSession(sessionToken) {
+    const client = await pool.connect();
+    try {
+      await client.query('DELETE FROM admin_sessions WHERE session_token = $1', [sessionToken]);
+    } finally {
+      client.release();
+    }
+  },
+
+  // Get all users for admin management
+  async getAllUsers() {
+    const client = await pool.connect();
+    try {
+      const result = await client.query(`
+        SELECT id, username, email, phone, created_at, updated_at 
+        FROM users 
+        ORDER BY created_at DESC
+      `);
+      return result.rows;
+    } finally {
+      client.release();
+    }
+  },
+
+  // Get user statistics
+  async getUserStats(userId) {
+    const client = await pool.connect();
+    try {
+      const portfolioCount = await client.query('SELECT COUNT(*) as count FROM portfolio WHERE user_id = $1', [userId]);
+      const closedCount = await client.query('SELECT COUNT(*) as count FROM closed_positions WHERE user_id = $1', [userId]);
+      const watchlistCount = await client.query('SELECT COUNT(*) as count FROM watchlist WHERE user_id = $1', [userId]);
+      
+      const totalInvested = await client.query('SELECT SUM(invested) as total FROM portfolio WHERE user_id = $1', [userId]);
+      const totalCurrentValue = await client.query('SELECT SUM(current_value) as total FROM portfolio WHERE user_id = $1', [userId]);
+      
+      return {
+        portfolioCount: parseInt(portfolioCount.rows[0].count),
+        closedPositionsCount: parseInt(closedCount.rows[0].count),
+        watchlistCount: parseInt(watchlistCount.rows[0].count),
+        totalInvested: totalInvested.rows[0].total ? parseFloat(totalInvested.rows[0].total) : 0,
+        totalCurrentValue: totalCurrentValue.rows[0].total ? parseFloat(totalCurrentValue.rows[0].total) : 0
+      };
+    } finally {
+      client.release();
+    }
+  }
+};
+
 module.exports = {
   pool,
   testConnection,
@@ -423,5 +553,6 @@ module.exports = {
   userOperations,
   portfolioOperations,
   closedPositionsOperations,
-  watchlistOperations
+  watchlistOperations,
+  adminOperations
 };
