@@ -74,25 +74,25 @@ class PortfolioProDemo {
                     value: 24350.45,
                     change: 125.30,
                     changePercent: 0.52,
-                    data: this.generateChartData(24350.45, 30)
+                    data: []
                 },
                 sensex: {
                     value: 79825.15,
                     change: -89.45,
                     changePercent: -0.11,
-                    data: this.generateChartData(79825.15, 30)
+                    data: []
                 },
                 banknifty: {
                     value: 51234.80,
                     change: 234.50,
                     changePercent: 0.46,
-                    data: this.generateChartData(51234.80, 30)
+                    data: []
                 },
                 finnifty: {
                     value: 23145.60,
                     change: 156.20,
                     changePercent: 0.68,
-                    data: this.generateChartData(23145.60, 30)
+                    data: []
                 }
             },
             news: [
@@ -389,145 +389,145 @@ class PortfolioProDemo {
         }
     }
 
-    // Fetch stock data from Yahoo Finance API directly
-    async fetchStockData(ticker) {
+    // Fetch multiple stock data from Yahoo Finance API using bulk endpoint
+    async fetchMultipleStockData(symbols) {
         try {
-            const nseSymbol = `${ticker}.NS`;
+            // Convert symbols to Yahoo format with .NS suffix
+            const yahooSymbols = symbols.map(symbol => `${symbol}.NS`).join(',');
             
-            // Try direct API call first
-            const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${nseSymbol}`;
+            // Use Yahoo Finance bulk quote API
+            const proxyUrl = 'https://api.allorigins.win/raw?url=';
+            const yahooUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${yahooSymbols}`;
+            const fullUrl = proxyUrl + encodeURIComponent(yahooUrl);
             
-            const chartResponse = await fetch(chartUrl, {
+            const response = await fetch(fullUrl, {
                 method: 'GET',
                 headers: {
-                    'User-Agent': 'curl/7.68.0',
-                    'Accept': 'application/json'
-                },
-                mode: 'cors'
+                    'User-Agent': 'curl/7.68.0', // Use curl user agent to avoid rate limiting
+                    'Accept': '*/*',
+                    'Accept-Encoding': 'gzip, deflate',
+                    'Connection': 'keep-alive'
+                }
             });
             
-            if (!chartResponse.ok) {
-                throw new Error(`HTTP error! status: ${chartResponse.status}`);
+            if (!response.ok) {
+                throw new Error(`Yahoo Finance bulk API error! status: ${response.status}`);
             }
             
-            const chartData = await chartResponse.json();
+            const data = await response.json();
             
-            if (!chartData.chart || !chartData.chart.result || chartData.chart.result.length === 0) {
-                throw new Error('No chart data found for this ticker');
+            if (!data.quoteResponse || !data.quoteResponse.result) {
+                throw new Error('No bulk data received from Yahoo Finance API');
             }
             
-            const result = chartData.chart.result[0];
+            const results = {};
+            
+            // Process each stock in the bulk response
+            data.quoteResponse.result.forEach(quote => {
+                try {
+                    const symbol = quote.symbol.replace('.NS', ''); // Remove .NS suffix
+                    const currentPrice = quote.regularMarketPrice || quote.previousClose || 0;
+                    const previousClose = quote.previousClose || quote.regularMarketPreviousClose || currentPrice;
+                    
+                    const dayChange = currentPrice - previousClose;
+                    const dayChangePercent = previousClose > 0 ? (dayChange / previousClose) * 100 : 0;
+                    
+                    // Extract company name and sector
+                    const companyName = quote.longName || quote.shortName || `${symbol} Limited`;
+                    const sector = quote.sector || 'Technology';
+                    
+                    results[symbol] = {
+                        name: companyName,
+                        sector: sector,
+                        currentPrice: Math.round(currentPrice * 100) / 100,
+                        dayChange: Math.round(dayChange * 100) / 100,
+                        dayChangePercent: Math.round(dayChangePercent * 100) / 100
+                    };
+                } catch (error) {
+                    console.warn(`Error processing bulk data for ${quote.symbol}:`, error.message);
+                    const symbol = quote.symbol.replace('.NS', '');
+                    results[symbol] = { error: error.message };
+                }
+            });
+            
+            console.log(`Successfully fetched bulk data for ${Object.keys(results).length} stocks from Yahoo Finance API`);
+            return results;
+            
+        } catch (error) {
+            console.error('Failed to fetch bulk stock data from Yahoo Finance API:', error.message);
+            throw error;
+        }
+    }
+
+    // Fetch stock data from Yahoo Finance API with rate limiting protection
+    async fetchStockData(ticker) {
+        try {
+            // Use proxy to avoid CORS issues and add proper headers to prevent rate limiting
+            const proxyUrl = 'https://api.allorigins.win/raw?url=';
+            const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}.NS`;
+            const fullUrl = proxyUrl + encodeURIComponent(yahooUrl);
+            
+            const response = await fetch(fullUrl, {
+                method: 'GET',
+                headers: {
+                    'User-Agent': 'curl/7.68.0', // Use curl user agent to avoid rate limiting
+                    'Accept': '*/*',
+                    'Accept-Encoding': 'gzip, deflate',
+                    'Connection': 'keep-alive'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Yahoo Finance API error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (!data.chart || !data.chart.result || data.chart.result.length === 0) {
+                throw new Error('No data found for this ticker');
+            }
+            
+            const result = data.chart.result[0];
             const meta = result.meta;
             const quote = result.indicators.quote[0];
             
-            const currentPrice = meta.regularMarketPrice || meta.previousClose || quote.close[quote.close.length - 1];
-            const previousClose = meta.previousClose;
+            const currentPrice = meta.regularMarketPrice || meta.previousClose || 0;
+            const previousClose = meta.previousClose || meta.chartPreviousClose || currentPrice;
             
             const dayChange = currentPrice - previousClose;
-            const dayChangePercent = (dayChange / previousClose) * 100;
+            const dayChangePercent = previousClose > 0 ? (dayChange / previousClose) * 100 : 0;
             
+            // Extract company name and sector from meta data
             const companyName = meta.longName || meta.shortName || `${ticker} Limited`;
+            const sector = meta.sector || 'Technology';
             
-            console.log(`Successfully fetched data for ${ticker} directly from Yahoo Finance`);
+            console.log(`Successfully fetched data for ${ticker} from Yahoo Finance API`);
             
-            // Return basic stock data (skip sector fetching to avoid rate limits)
             return {
                 name: companyName,
-                sector: 'Technology', // Default sector to avoid additional API calls
+                sector: sector,
                 currentPrice: Math.round(currentPrice * 100) / 100,
                 dayChange: Math.round(dayChange * 100) / 100,
                 dayChangePercent: Math.round(dayChangePercent * 100) / 100
             };
             
         } catch (error) {
-            console.error(`Failed to fetch data for ${ticker} directly:`, error.message);
-            
-            // If direct call fails, try with a simple fallback using mock data
-            console.warn(`Using fallback data for ${ticker}`);
-            
-            // Generate realistic mock data as fallback
-            const basePrice = 1000 + Math.random() * 2000; // Random price between 1000-3000
-            const dayChangePercent = (Math.random() - 0.5) * 10; // ±5% change
-            const dayChange = (basePrice * dayChangePercent) / 100;
-            
-            return {
-                name: `${ticker} Limited`,
-                sector: 'Technology',
-                currentPrice: Math.round(basePrice * 100) / 100,
-                dayChange: Math.round(dayChange * 100) / 100,
-                dayChangePercent: Math.round(dayChangePercent * 100) / 100
-            };
+            console.error(`Failed to fetch data for ${ticker} from Yahoo Finance API:`, error.message);
+            throw error;
         }
     }
 
-    // Refresh stock prices using optimized approach
+    // Refresh stock prices using real API calls
     async refreshStockPrices() {
         if (this.dummyData.portfolio.length === 0 && this.dummyData.watchlist.length === 0) {
             this.showNotification('No stocks to refresh', 'info');
             return;
         }
 
-        // No loading overlay - refresh happens in background
-        try {
-            // For demo purposes, simulate quick refresh with realistic price updates
-            this.simulateQuickRefresh();
-            
-            // Save updated data to APIs in background
-            this.savePortfolioData().catch(err => console.warn('Background save failed:', err));
-            this.saveWatchlistData().catch(err => console.warn('Background save failed:', err));
-            
-            // Update UI immediately
-            this.renderDashboard();
-            this.renderSectionContent(this.currentSection);
-            
-            this.showNotification('Data refreshed successfully!', 'success');
-            
-        } catch (error) {
-            console.error('Error refreshing data:', error);
-            this.showNotification('Failed to refresh data', 'error');
-        }
+        // Use real API refresh instead of simulation
+        await this.refreshStockPricesFromAPI();
     }
 
-    // Simulate quick refresh with realistic price movements
-    simulateQuickRefresh() {
-        let updatedCount = 0;
-        
-        // Update only active portfolio stocks (not closed positions)
-        this.dummyData.portfolio.forEach(stock => {
-            if (stock.currentPrice && stock.quantity > 0) {
-                // Simulate realistic price movement (±2% max for quick refresh)
-                const changePercent = (Math.random() - 0.5) * 0.04; // ±2%
-                const previousPrice = stock.currentPrice;
-                
-                stock.currentPrice = Math.max(previousPrice * (1 + changePercent), 1);
-                stock.dayChange = stock.currentPrice - previousPrice;
-                stock.dayChangePercent = (stock.dayChange / previousPrice) * 100;
-                stock.currentValue = stock.currentPrice * stock.quantity;
-                stock.pl = stock.currentValue - stock.invested;
-                stock.plPercent = stock.invested > 0 ? (stock.pl / stock.invested) * 100 : 0;
-                
-                updatedCount++;
-            }
-        });
-        
-        // Update only active watchlist stocks
-        this.dummyData.watchlist.forEach(stock => {
-            if (stock.currentPrice) {
-                const changePercent = (Math.random() - 0.5) * 0.04; // ±2%
-                const previousPrice = stock.currentPrice;
-                
-                stock.currentPrice = Math.max(previousPrice * (1 + changePercent), 1);
-                stock.dayChange = stock.currentPrice - previousPrice;
-                stock.dayChangePercent = (stock.dayChange / previousPrice) * 100;
-                
-                updatedCount++;
-            }
-        });
-        
-        // Don't update closed positions - they are historical data
-        
-        console.log(`Quick refresh completed for ${updatedCount} active stocks (portfolio: ${this.dummyData.portfolio.length}, watchlist: ${this.dummyData.watchlist.length})`);
-    }
 
     // Optional: Real API refresh for when needed (can be called separately)
     async refreshStockPricesFromAPI() {
@@ -626,30 +626,12 @@ class PortfolioProDemo {
             
         } catch (error) {
             console.error('Error refreshing stock prices from API:', error);
-            this.showNotification('API refresh failed, using simulated data', 'warning');
-            // Fallback to quick refresh
-            this.simulateQuickRefresh();
+            this.showNotification('API refresh failed', 'error');
         } finally {
             this.hideLoadingOverlay();
         }
     }
 
-    // Generate chart data for demonstrations
-    generateChartData(baseValue, points = 30) {
-        const data = [];
-        let currentValue = baseValue;
-        
-        for (let i = 0; i < points; i++) {
-            const change = (Math.random() - 0.5) * (baseValue * 0.02);
-            currentValue += change;
-            data.push({
-                x: new Date(Date.now() - (points - i) * 24 * 60 * 60 * 1000),
-                y: Math.round(currentValue * 100) / 100
-            });
-        }
-        
-        return data;
-    }
 
     // Bind all event listeners
     bindEvents() {
@@ -1051,82 +1033,59 @@ class PortfolioProDemo {
         `).join('');
     }
 
-    // Generate recent activities from actual data
+    // Generate recent activities from actual data only
     generateRecentActivities() {
         const activities = [];
-        const now = new Date();
         
-        // Add portfolio activities (recent purchases)
-        this.dummyData.portfolio.forEach((stock, index) => {
-            // Use purchase date if available, otherwise simulate recent dates
-            let activityDate;
+        // Add portfolio activities (only if purchase date exists)
+        this.dummyData.portfolio.forEach((stock) => {
             if (stock.purchaseDate) {
-                activityDate = new Date(stock.purchaseDate);
-            } else {
-                // Simulate recent purchase dates (last 30 days)
-                const daysAgo = Math.floor(Math.random() * 30) + index;
-                activityDate = new Date(now.getTime() - (daysAgo * 24 * 60 * 60 * 1000));
+                const activityDate = new Date(stock.purchaseDate);
+                const avgPrice = stock.buyPrice || (stock.invested / stock.quantity);
+                
+                activities.push({
+                    type: 'buy',
+                    title: `Bought ${stock.symbol || stock.ticker}`,
+                    subtitle: `${stock.quantity} shares at ${this.formatCurrency(avgPrice)}`,
+                    time: this.getTimeAgo(activityDate),
+                    timestamp: activityDate,
+                    symbol: stock.symbol || stock.ticker
+                });
             }
-            
-            const avgPrice = stock.buyPrice || (stock.invested / stock.quantity);
-            
-            activities.push({
-                type: 'buy',
-                title: `Bought ${stock.symbol || stock.ticker}`,
-                subtitle: `${stock.quantity} shares at ${this.formatCurrency(avgPrice)}`,
-                time: this.getTimeAgo(activityDate),
-                timestamp: activityDate,
-                symbol: stock.symbol || stock.ticker
-            });
         });
         
-        // Add watchlist activities (recently added to watchlist)
-        this.dummyData.watchlist.forEach((stock, index) => {
-            // Use added date if available, otherwise simulate recent dates
-            let activityDate;
+        // Add watchlist activities (only if added date exists)
+        this.dummyData.watchlist.forEach((stock) => {
             if (stock.addedDate) {
-                activityDate = new Date(stock.addedDate);
-            } else {
-                // Simulate recent watchlist additions (last 15 days)
-                const daysAgo = Math.floor(Math.random() * 15) + index;
-                activityDate = new Date(now.getTime() - (daysAgo * 24 * 60 * 60 * 1000));
+                const activityDate = new Date(stock.addedDate);
+                
+                activities.push({
+                    type: 'watchlist',
+                    title: `Added ${stock.symbol || stock.ticker} to watchlist`,
+                    subtitle: `Monitoring at ${this.formatCurrency(stock.currentPrice || 0)}`,
+                    time: this.getTimeAgo(activityDate),
+                    timestamp: activityDate,
+                    symbol: stock.symbol || stock.ticker
+                });
             }
-            
-            activities.push({
-                type: 'watchlist',
-                title: `Added ${stock.symbol || stock.ticker} to watchlist`,
-                subtitle: `Monitoring at ${this.formatCurrency(stock.currentPrice || 0)}`,
-                time: this.getTimeAgo(activityDate),
-                timestamp: activityDate,
-                symbol: stock.symbol || stock.ticker
-            });
         });
         
-        // Add closed position activities (recent sales)
-        this.dummyData.closedPositions.forEach((position, index) => {
-            // Use actual sell date if available, otherwise simulate
-            let activityDate;
-            if (position.sellDate) {
-                activityDate = new Date(position.sellDate);
-            } else if (position.closedDate) {
-                activityDate = new Date(position.closedDate);
-            } else {
-                // Simulate recent sales (last 60 days)
-                const daysAgo = Math.floor(Math.random() * 60) + index;
-                activityDate = new Date(now.getTime() - (daysAgo * 24 * 60 * 60 * 1000));
+        // Add closed position activities (only if sell date exists)
+        this.dummyData.closedPositions.forEach((position) => {
+            if (position.sellDate || position.closedDate) {
+                const activityDate = new Date(position.sellDate || position.closedDate);
+                const pl = position.pl || position.finalPL || 0;
+                const plText = pl >= 0 ? `+${this.formatCurrency(pl)} profit` : `${this.formatCurrency(pl)} loss`;
+                
+                activities.push({
+                    type: 'sell',
+                    title: `Sold ${position.symbol || position.ticker}`,
+                    subtitle: `${position.quantity} shares - ${plText}`,
+                    time: this.getTimeAgo(activityDate),
+                    timestamp: activityDate,
+                    symbol: position.symbol || position.ticker
+                });
             }
-            
-            const pl = position.pl || position.finalPL || 0;
-            const plText = pl >= 0 ? `+${this.formatCurrency(pl)} profit` : `${this.formatCurrency(pl)} loss`;
-            
-            activities.push({
-                type: 'sell',
-                title: `Sold ${position.symbol || position.ticker}`,
-                subtitle: `${position.quantity} shares - ${plText}`,
-                time: this.getTimeAgo(activityDate),
-                timestamp: activityDate,
-                symbol: position.symbol || position.ticker
-            });
         });
         
         // Sort by timestamp (most recent first) and limit to 6 items for display
@@ -1910,20 +1869,23 @@ class PortfolioProDemo {
         });
     }
 
-    // Generate portfolio trend data
+    // Generate portfolio trend data from real portfolio value
     generatePortfolioTrendData() {
         const labels = [];
         const values = [];
         const totalValue = this.dummyData.portfolio.reduce((sum, stock) => sum + stock.currentValue, 0);
         
+        // If no portfolio data, return empty arrays
+        if (totalValue === 0) {
+            return { labels: [], values: [] };
+        }
+        
+        // Generate labels for last 30 days and use current portfolio value
         for (let i = 29; i >= 0; i--) {
             const date = new Date();
             date.setDate(date.getDate() - i);
             labels.push(date.toLocaleDateString());
-            
-            const variation = (Math.random() - 0.5) * 0.1;
-            const value = totalValue * (1 + variation);
-            values.push(Math.round(value));
+            values.push(totalValue); // Use actual portfolio value instead of random
         }
         
         return { labels, values };
@@ -1984,22 +1946,30 @@ class PortfolioProDemo {
         `).join('');
     }
 
-    // Generate performance data
+    // Generate performance data from real portfolio data
     generatePerformanceData() {
         const labels = [];
         const portfolio = [];
         const benchmark = [];
         
+        // If no portfolio data, return empty arrays
+        if (this.dummyData.portfolio.length === 0) {
+            return { labels: [], portfolio: [], benchmark: [] };
+        }
+        
+        // Generate labels for last 12 months
         for (let i = 11; i >= 0; i--) {
             const date = new Date();
             date.setMonth(date.getMonth() - i);
             labels.push(date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }));
             
-            const portfolioReturn = Math.random() * 20 - 5; // -5% to 15%
-            const benchmarkReturn = Math.random() * 15 - 3; // -3% to 12%
+            // Use actual portfolio performance instead of random data
+            const totalInvested = this.dummyData.portfolio.reduce((sum, stock) => sum + stock.invested, 0);
+            const totalCurrentValue = this.dummyData.portfolio.reduce((sum, stock) => sum + stock.currentValue, 0);
+            const portfolioReturn = totalInvested > 0 ? ((totalCurrentValue - totalInvested) / totalInvested) * 100 : 0;
             
             portfolio.push(portfolioReturn);
-            benchmark.push(benchmarkReturn);
+            benchmark.push(0); // Placeholder for benchmark data
         }
         
         return { labels, portfolio, benchmark };
@@ -2171,11 +2141,6 @@ class PortfolioProDemo {
         // Animate counters
         this.animateCounters();
         
-        // Start periodic updates with real API calls
-        setInterval(() => {
-            this.updateRealTimeData();
-        }, 30000); // Update every 30 seconds
-        
         // Update market status every minute
         setInterval(() => {
             this.fetchMarketStatus();
@@ -2202,7 +2167,7 @@ class PortfolioProDemo {
         console.log('Real-time stock updates started - prices will refresh every 1 minute using Yahoo Finance API');
     }
 
-    // Update stock prices from Yahoo Finance API
+    // Update stock prices from Yahoo Finance API using bulk endpoint
     async updateStockPricesFromAPI() {
         if (this.dummyData.portfolio.length === 0 && this.dummyData.watchlist.length === 0) {
             console.log('No stocks to update');
@@ -2219,22 +2184,18 @@ class PortfolioProDemo {
             ];
             
             const uniqueSymbols = [...new Set(allSymbols)];
+            
+            // Use bulk API to fetch multiple stocks at once
+            const bulkStockData = await this.fetchMultipleStockData(uniqueSymbols);
+            
             let successCount = 0;
             let errorCount = 0;
 
-            // Update stocks in parallel with timeout
-            const updatePromises = uniqueSymbols.map(async (symbol) => {
-                try {
-                    // Add timeout to prevent hanging
-                    const timeoutPromise = new Promise((_, reject) => 
-                        setTimeout(() => reject(new Error('Timeout')), 8000)
-                    );
-                    
-                    const stockData = await Promise.race([
-                        this.fetchStockData(symbol),
-                        timeoutPromise
-                    ]);
-                    
+            // Update portfolio and watchlist with bulk data
+            uniqueSymbols.forEach(symbol => {
+                const stockData = bulkStockData[symbol];
+                
+                if (stockData && !stockData.error) {
                     // Update portfolio stocks
                     this.dummyData.portfolio.forEach(stock => {
                         const stockSymbol = stock.ticker || stock.symbol;
@@ -2264,24 +2225,9 @@ class PortfolioProDemo {
                         }
                     });
                     
-                    return { symbol, success: true };
-                } catch (error) {
-                    console.warn(`Failed to update ${symbol}:`, error.message);
-                    return { symbol, success: false };
-                }
-            });
-
-            // Wait for all updates to complete
-            const results = await Promise.allSettled(updatePromises);
-            
-            results.forEach(result => {
-                if (result.status === 'fulfilled') {
-                    if (result.value.success) {
-                        successCount++;
-                    } else {
-                        errorCount++;
-                    }
+                    successCount++;
                 } else {
+                    console.warn(`Failed to update ${symbol}:`, stockData?.error || 'No data received');
                     errorCount++;
                 }
             });
@@ -2295,11 +2241,130 @@ class PortfolioProDemo {
                 this.renderDashboard();
                 this.renderSectionContent(this.currentSection);
                 
-                console.log(`Background update completed: ${successCount} stocks updated, ${errorCount} failed`);
+                console.log(`Background bulk update completed: ${successCount} stocks updated, ${errorCount} failed`);
             }
             
         } catch (error) {
             console.error('Error in background stock price update:', error);
+            
+            // Fallback to individual API calls if bulk fails
+            console.log('Falling back to individual API calls...');
+            await this.updateStockPricesFromAPIIndividual();
+        }
+    }
+
+    // Fallback method for individual API calls
+    async updateStockPricesFromAPIIndividual() {
+        const allSymbols = [
+            ...this.dummyData.portfolio.map(stock => stock.ticker || stock.symbol),
+            ...this.dummyData.watchlist.map(stock => stock.ticker || stock.symbol)
+        ];
+        
+        const uniqueSymbols = [...new Set(allSymbols)];
+        let successCount = 0;
+        let errorCount = 0;
+
+        // Process stocks sequentially with delay to avoid rate limiting
+        for (const symbol of uniqueSymbols) {
+            try {
+                // Add delay between requests to avoid rate limiting
+                if (successCount > 0) {
+                    await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
+                }
+                
+                // Add timeout to prevent hanging
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Timeout')), 10000)
+                );
+                
+                const stockData = await Promise.race([
+                    this.fetchStockData(symbol),
+                    timeoutPromise
+                ]);
+                
+                // Update portfolio stocks
+                this.dummyData.portfolio.forEach(stock => {
+                    const stockSymbol = stock.ticker || stock.symbol;
+                    if (stockSymbol === symbol) {
+                        stock.currentPrice = stockData.currentPrice;
+                        stock.dayChange = stockData.dayChange;
+                        stock.dayChangePercent = stockData.dayChangePercent;
+                        stock.currentValue = stock.currentPrice * stock.quantity;
+                        stock.pl = stock.currentValue - stock.invested;
+                        stock.plPercent = stock.invested > 0 ? (stock.pl / stock.invested) * 100 : 0;
+                        stock.name = stockData.name;
+                        stock.sector = stockData.sector;
+                        stock.lastUpdated = new Date().toISOString();
+                    }
+                });
+                
+                // Update watchlist stocks
+                this.dummyData.watchlist.forEach(stock => {
+                    const stockSymbol = stock.ticker || stock.symbol;
+                    if (stockSymbol === symbol) {
+                        stock.currentPrice = stockData.currentPrice;
+                        stock.dayChange = stockData.dayChange;
+                        stock.dayChangePercent = stockData.dayChangePercent;
+                        stock.name = stockData.name;
+                        stock.sector = stockData.sector;
+                        stock.lastUpdated = new Date().toISOString();
+                    }
+                });
+                
+                successCount++;
+                console.log(`Successfully updated ${symbol} (${successCount}/${uniqueSymbols.length})`);
+                
+            } catch (error) {
+                console.warn(`Failed to update ${symbol}:`, error.message);
+                errorCount++;
+                
+                // If we get rate limited, add longer delay
+                if (error.message.includes('429') || error.message.includes('Too Many Requests')) {
+                    console.warn('Rate limited detected, adding longer delay...');
+                    await new Promise(resolve => setTimeout(resolve, 5000)); // 5 second delay
+                }
+            }
+        }
+
+        // Save updated data to APIs in background
+        if (successCount > 0) {
+            this.savePortfolioData().catch(err => console.warn('Background portfolio save failed:', err));
+            this.saveWatchlistData().catch(err => console.warn('Background watchlist save failed:', err));
+            
+            // Update UI with new data
+            this.renderDashboard();
+            this.renderSectionContent(this.currentSection);
+            
+            console.log(`Fallback update completed: ${successCount} stocks updated, ${errorCount} failed`);
+        }
+    }
+
+    // Refresh closed positions data from server
+    async refreshClosedPositions() {
+        this.showLoadingOverlay('Refreshing closed positions...');
+        
+        try {
+            // Load closed positions data from API
+            const closedPositionsResponse = await fetch('/api/closed-positions');
+            if (closedPositionsResponse.ok) {
+                this.dummyData.closedPositions = await closedPositionsResponse.json();
+                
+                // Update UI
+                this.updateSidebarStats();
+                if (this.currentSection === 'closed-positions') {
+                    this.renderClosedPositions();
+                }
+                
+                this.showNotification('Closed positions refreshed successfully!', 'success');
+                console.log('Closed positions data refreshed from server');
+            } else {
+                throw new Error('Failed to fetch closed positions data');
+            }
+        } catch (error) {
+            console.error('Error refreshing closed positions:', error);
+            this.showNotification('Failed to refresh closed positions', 'error');
+        } finally {
+            this.hideLoadingOverlay();
         }
     }
 
@@ -2337,39 +2402,6 @@ class PortfolioProDemo {
         });
     }
 
-    // Update real-time data
-    updateRealTimeData() {
-        // Simulate real-time price updates
-        this.dummyData.portfolio.forEach(stock => {
-            const change = (Math.random() - 0.5) * 0.02; // ±2% change
-            stock.currentPrice *= (1 + change);
-            stock.dayChange = stock.currentPrice - (stock.currentPrice / (1 + change));
-            stock.dayChangePercent = (stock.dayChange / (stock.currentPrice - stock.dayChange)) * 100;
-            stock.currentValue = stock.currentPrice * stock.quantity;
-            stock.pl = stock.currentValue - stock.invested;
-            stock.plPercent = (stock.pl / stock.invested) * 100;
-        });
-        
-        // Update watchlist
-        this.dummyData.watchlist.forEach(stock => {
-            const change = (Math.random() - 0.5) * 0.02;
-            stock.currentPrice *= (1 + change);
-            stock.dayChange = stock.currentPrice * change;
-            stock.dayChangePercent = change * 100;
-        });
-        
-        // Update market indices
-        Object.keys(this.dummyData.marketIndices).forEach(index => {
-            const data = this.dummyData.marketIndices[index];
-            const change = (Math.random() - 0.5) * 0.01;
-            data.value *= (1 + change);
-            data.change = data.value * change;
-            data.changePercent = change * 100;
-        });
-        
-        // Re-render current section
-        this.renderSectionContent(this.currentSection);
-    }
 
     // Utility functions
     formatCurrency(amount, short = false) {
@@ -2484,6 +2516,9 @@ class PortfolioProDemo {
 
         // Refresh button event
         document.getElementById('refreshBtn')?.addEventListener('click', () => this.refreshStockPrices());
+        
+        // Closed positions refresh button event
+        document.getElementById('refreshClosedPositionsBtn')?.addEventListener('click', () => this.refreshClosedPositions());
 
         // Export and Settings button events
         document.getElementById('exportBtn')?.addEventListener('click', () => this.showNotification('Export functionality coming soon!', 'info'));
@@ -2575,141 +2610,82 @@ class PortfolioProDemo {
         }
     }
 
-    // Handle stock symbol input for autocomplete
+    // Handle stock symbol input for autocomplete with debouncing
     async handleStockSymbolInput(e) {
         const input = e.target;
         const query = input.value.toUpperCase().trim();
         const suggestionsDropdown = document.getElementById('stockSuggestions');
+        
+        // Clear previous timeout
+        if (this.searchTimeout) {
+            clearTimeout(this.searchTimeout);
+        }
         
         if (query.length < 3) {
             suggestionsDropdown.style.display = 'none';
             return;
         }
 
-        // Show loading in suggestions
+        // Show loading in suggestions immediately
         suggestionsDropdown.innerHTML = '<div class="suggestion-loading">Searching stocks...</div>';
         suggestionsDropdown.style.display = 'block';
 
-        try {
-            const suggestions = await this.searchStocks(query);
-            this.displayStockSuggestions(suggestions, suggestionsDropdown);
-        } catch (error) {
-            console.error('Error fetching stock suggestions:', error);
-            suggestionsDropdown.innerHTML = '<div class="suggestion-error">Error fetching suggestions</div>';
-        }
-    }
-
-    // Search for stocks using Yahoo Finance API with multiple fallbacks
-    async searchStocks(query) {
-        // Try multiple approaches for better reliability
-        const searchMethods = [
-            () => this.searchStocksYahooSearch(query),
-            () => this.searchStocksYahooQuote(query),
-            () => this.searchStocksAlternative(query)
-        ];
-
-        for (const searchMethod of searchMethods) {
+        // Debounce the API call - wait 500ms after user stops typing
+        this.searchTimeout = setTimeout(async () => {
             try {
-                const results = await searchMethod();
-                if (results && results.length > 0) {
-                    console.log(`Stock search successful with method: ${searchMethod.name}`);
-                    return results;
-                }
+                const suggestions = await this.searchStocks(query);
+                this.displayStockSuggestions(suggestions, suggestionsDropdown);
             } catch (error) {
-                console.warn(`Search method ${searchMethod.name} failed:`, error.message);
-                continue;
+                console.error('Error fetching stock suggestions:', error);
+                suggestionsDropdown.innerHTML = '<div class="suggestion-error">Error fetching suggestions</div>';
             }
-        }
-
-        // If all methods fail, return empty array
-        console.warn('All stock search methods failed, returning empty results');
-        return [];
+        }, 500); // 500ms delay
     }
 
-    // Primary search method using Yahoo Finance search API - Direct call
-    async searchStocksYahooSearch(query) {
+    // Search for stocks using Yahoo Finance API
+    async searchStocks(query) {
         try {
-            const searchUrl = `https://query1.finance.yahoo.com/v1/finance/search?q=${query}.NS&quotesCount=10&newsCount=0&enableFuzzyQuery=false`;
+            const proxyUrl = 'https://api.allorigins.win/raw?url=';
+            const yahooSearchUrl = `https://query1.finance.yahoo.com/v1/finance/search?q=${query}`;
+            const fullUrl = proxyUrl + encodeURIComponent(yahooSearchUrl);
             
-            const response = await fetch(searchUrl, {
+            const response = await fetch(fullUrl, {
                 method: 'GET',
                 headers: {
                     'User-Agent': 'curl/7.68.0',
-                    'Accept': 'application/json'
-                },
-                mode: 'cors'
+                    'Accept': '*/*',
+                    'Accept-Encoding': 'gzip, deflate',
+                    'Connection': 'keep-alive'
+                }
             });
             
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                throw new Error(`Yahoo search API error! status: ${response.status}`);
             }
             
             const data = await response.json();
             
             if (data.quotes && data.quotes.length > 0) {
-                return data.quotes
-                    .filter(quote => {
-                        const symbol = quote.symbol || '';
-                        // Only NSE stocks (.NS suffix)
-                        return symbol.endsWith('.NS') && 
-                               (quote.quoteType === 'EQUITY' || !quote.quoteType) &&
-                               (quote.exchange === 'NSI' || quote.exchange === 'NSE' || !quote.exchange);
-                    })
+                const results = data.quotes
+                    .filter(item => item.symbol && item.symbol.includes('.NS')) // Filter for NSE stocks
                     .slice(0, 5)
-                    .map(quote => ({
-                        symbol: quote.symbol.replace('.NS', ''),
-                        name: quote.longname || quote.shortname || quote.symbol,
+                    .map(item => ({
+                        symbol: item.symbol.replace('.NS', ''), // Remove .NS suffix for display
+                        name: item.longname || item.shortname || `${item.symbol.replace('.NS', '')} Limited`,
                         exchange: 'NSE'
                     }));
-            }
-            
-            return [];
-        } catch (error) {
-            console.warn(`Direct search failed for ${query}:`, error.message);
-            throw error;
-        }
-    }
-
-    // Alternative search using quote API - Direct call
-    async searchStocksYahooQuote(query) {
-        const nseSymbol = `${query}.NS`; // Only search NSE
-        
-        try {
-            const quoteUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${nseSymbol}`;
-            
-            const response = await fetch(quoteUrl, {
-                method: 'GET',
-                headers: {
-                    'User-Agent': 'curl/7.68.0',
-                    'Accept': 'application/json'
-                },
-                mode: 'cors'
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
                 
-                if (data.quoteResponse && data.quoteResponse.result && data.quoteResponse.result.length > 0) {
-                    return data.quoteResponse.result
-                        .filter(quote => quote.symbol && quote.symbol.endsWith('.NS'))
-                        .map(quote => ({
-                            symbol: quote.symbol.replace('.NS', ''),
-                            name: quote.longName || quote.shortName || quote.displayName || quote.symbol,
-                            exchange: 'NSE'
-                        }));
-                }
+                console.log(`Stock search successful for query: ${query}, found ${results.length} results`);
+                return results;
             }
+            
+            console.log(`No results found for query: ${query}`);
+            return [];
+            
         } catch (error) {
-            console.warn(`NSE quote search failed for ${nseSymbol}:`, error.message);
+            console.warn(`Yahoo search failed for ${query}:`, error.message);
+            return [];
         }
-        
-        return [];
-    }
-
-    // Alternative search method - Returns empty array as final fallback
-    async searchStocksAlternative(query) {
-        console.warn('Using final fallback search method - returning empty results');
-        return [];
     }
 
 
@@ -3991,6 +3967,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Handle page visibility changes
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && window.portfolioProDemo) {
-        window.portfolioProDemo.updateRealTimeData();
+        // Trigger a background API update when page becomes visible
+        window.portfolioProDemo.updateStockPricesFromAPI();
     }
 });
