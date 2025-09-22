@@ -1542,42 +1542,42 @@ class PortfolioProDemo {
         }
 
         closedPositionsGrid.innerHTML = this.dummyData.closedPositions.map(position => `
-            <div class="closed-position-card ${(position.pl || position.finalPL || 0) >= 0 ? 'profit' : 'loss'}" data-position-id="${position.id}">
+            <div class="closed-position-card ${position.pl >= 0 ? 'profit' : 'loss'}" data-position-id="${position.id}">
                 <div class="closed-header">
                     <div class="closed-info">
                         <div class="closed-symbol">${position.symbol || position.ticker}</div>
                         <div class="closed-name">${position.name}</div>
                     </div>
-                    <div class="closed-pl ${(position.pl || position.finalPL || 0) >= 0 ? 'positive' : 'negative'}">
-                        <i class="fas fa-${(position.pl || position.finalPL || 0) >= 0 ? 'arrow-up' : 'arrow-down'}"></i>
-                        ${(position.pl || position.finalPL || 0) >= 0 ? '+' : ''}${(position.plPercent || position.finalPLPercent || 0).toFixed(2)}%
+                    <div class="closed-pl ${position.pl >= 0 ? 'positive' : 'negative'}">
+                        <i class="fas fa-${position.pl >= 0 ? 'arrow-up' : 'arrow-down'}"></i>
+                        ${position.pl >= 0 ? '+' : ''}${position.plPercent.toFixed(2)}%
                     </div>
                 </div>
                 <div class="closed-stats">
                     <div class="closed-stat">
                         <div class="closed-stat-label">Buy Price</div>
-                        <div class="closed-stat-value">${this.formatCurrency(position.buyPrice || 0)}</div>
+                        <div class="closed-stat-value">${this.formatCurrency(position.buyPrice)}</div>
                     </div>
                     <div class="closed-stat">
                         <div class="closed-stat-label">Sell Price</div>
-                        <div class="closed-stat-value">${this.formatCurrency(position.sellPrice || position.closePrice || 0)}</div>
+                        <div class="closed-stat-value">${this.formatCurrency(position.sellPrice)}</div>
                     </div>
                     <div class="closed-stat">
                         <div class="closed-stat-label">Quantity</div>
-                        <div class="closed-stat-value">${position.quantity || 0}</div>
+                        <div class="closed-stat-value">${position.quantity}</div>
                     </div>
                     <div class="closed-stat">
                         <div class="closed-stat-label">Invested</div>
-                        <div class="closed-stat-value">${this.formatCurrency(position.invested || 0)}</div>
+                        <div class="closed-stat-value">${this.formatCurrency(position.invested)}</div>
                     </div>
                     <div class="closed-stat">
                         <div class="closed-stat-label">Realized</div>
-                        <div class="closed-stat-value">${this.formatCurrency(position.realized || position.closeValue || 0)}</div>
+                        <div class="closed-stat-value">${this.formatCurrency(position.realized)}</div>
                     </div>
                     <div class="closed-stat">
                         <div class="closed-stat-label">P&L</div>
-                        <div class="closed-stat-value ${(position.pl || position.finalPL || 0) >= 0 ? 'positive' : 'negative'}">
-                            ${this.formatCurrency(position.pl || position.finalPL || 0)}
+                        <div class="closed-stat-value ${position.pl >= 0 ? 'positive' : 'negative'}">
+                            ${this.formatCurrency(position.pl)}
                         </div>
                     </div>
                 </div>
@@ -1601,8 +1601,34 @@ class PortfolioProDemo {
 
     // Update closed positions summary
     updateClosedPositionsSummary() {
-        const totalRealized = this.dummyData.closedPositions.reduce((sum, pos) => sum + (pos.realized || pos.closeValue || 0), 0);
-        const totalProfit = this.dummyData.closedPositions.reduce((sum, pos) => sum + (pos.pl || pos.finalPL || 0), 0);
+        // Ensure all closed positions have consistent field names and correct calculations
+        this.dummyData.closedPositions.forEach(position => {
+            // Standardize field names and ensure calculations are correct
+            const buyPrice = position.buyPrice || 0;
+            const sellPrice = position.sellPrice || position.closePrice || 0;
+            const quantity = position.quantity || 0;
+            
+            // Calculate invested amount
+            position.invested = buyPrice * quantity;
+            
+            // Calculate realized amount (total amount received from sale)
+            position.realized = sellPrice * quantity;
+            
+            // Calculate P&L (profit/loss)
+            position.pl = position.realized - position.invested;
+            
+            // Calculate P&L percentage
+            position.plPercent = position.invested > 0 ? (position.pl / position.invested) * 100 : 0;
+            
+            // Ensure backward compatibility with different field names
+            position.finalPL = position.pl;
+            position.finalPLPercent = position.plPercent;
+            position.closeValue = position.realized;
+            position.closePrice = position.sellPrice;
+        });
+
+        const totalRealized = this.dummyData.closedPositions.reduce((sum, pos) => sum + (pos.realized || 0), 0);
+        const totalProfit = this.dummyData.closedPositions.reduce((sum, pos) => sum + (pos.pl || 0), 0);
         const totalPositions = this.dummyData.closedPositions.length;
         
         // Calculate average return
@@ -2174,7 +2200,7 @@ class PortfolioProDemo {
         // Animate counters
         this.animateCounters();
         
-        // Start periodic updates
+        // Start periodic updates with real API calls
         setInterval(() => {
             this.updateRealTimeData();
         }, 30000); // Update every 30 seconds
@@ -2183,6 +2209,136 @@ class PortfolioProDemo {
         setInterval(() => {
             this.fetchMarketStatus();
         }, 60000); // Update every 60 seconds
+
+        // Start real-time stock price updates using Yahoo Finance API
+        this.startRealTimeStockUpdates();
+    }
+
+    // Start real-time stock price updates using Yahoo Finance API
+    startRealTimeStockUpdates() {
+        console.log('Starting real-time stock price updates with Yahoo Finance API...');
+        
+        // Update stock prices every 1 minute (60000 ms)
+        this.stockUpdateInterval = setInterval(async () => {
+            await this.updateStockPricesFromAPI();
+        }, 60000); // 1 minute
+        
+        // Also update immediately after 5 seconds
+        setTimeout(() => {
+            this.updateStockPricesFromAPI();
+        }, 5000);
+        
+        console.log('Real-time stock updates started - prices will refresh every 1 minute using Yahoo Finance API');
+    }
+
+    // Update stock prices from Yahoo Finance API
+    async updateStockPricesFromAPI() {
+        if (this.dummyData.portfolio.length === 0 && this.dummyData.watchlist.length === 0) {
+            console.log('No stocks to update');
+            return;
+        }
+
+        console.log('Updating stock prices from Yahoo Finance API in background...');
+        
+        try {
+            // Get all unique symbols
+            const allSymbols = [
+                ...this.dummyData.portfolio.map(stock => stock.ticker || stock.symbol),
+                ...this.dummyData.watchlist.map(stock => stock.ticker || stock.symbol)
+            ];
+            
+            const uniqueSymbols = [...new Set(allSymbols)];
+            let successCount = 0;
+            let errorCount = 0;
+
+            // Update stocks in parallel with timeout
+            const updatePromises = uniqueSymbols.map(async (symbol) => {
+                try {
+                    // Add timeout to prevent hanging
+                    const timeoutPromise = new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error('Timeout')), 8000)
+                    );
+                    
+                    const stockData = await Promise.race([
+                        this.fetchStockData(symbol),
+                        timeoutPromise
+                    ]);
+                    
+                    // Update portfolio stocks
+                    this.dummyData.portfolio.forEach(stock => {
+                        const stockSymbol = stock.ticker || stock.symbol;
+                        if (stockSymbol === symbol) {
+                            stock.currentPrice = stockData.currentPrice;
+                            stock.dayChange = stockData.dayChange;
+                            stock.dayChangePercent = stockData.dayChangePercent;
+                            stock.currentValue = stock.currentPrice * stock.quantity;
+                            stock.pl = stock.currentValue - stock.invested;
+                            stock.plPercent = stock.invested > 0 ? (stock.pl / stock.invested) * 100 : 0;
+                            stock.name = stockData.name;
+                            stock.sector = stockData.sector;
+                            stock.lastUpdated = new Date().toISOString();
+                        }
+                    });
+                    
+                    // Update watchlist stocks
+                    this.dummyData.watchlist.forEach(stock => {
+                        const stockSymbol = stock.ticker || stock.symbol;
+                        if (stockSymbol === symbol) {
+                            stock.currentPrice = stockData.currentPrice;
+                            stock.dayChange = stockData.dayChange;
+                            stock.dayChangePercent = stockData.dayChangePercent;
+                            stock.name = stockData.name;
+                            stock.sector = stockData.sector;
+                            stock.lastUpdated = new Date().toISOString();
+                        }
+                    });
+                    
+                    return { symbol, success: true };
+                } catch (error) {
+                    console.warn(`Failed to update ${symbol}:`, error.message);
+                    return { symbol, success: false };
+                }
+            });
+
+            // Wait for all updates to complete
+            const results = await Promise.allSettled(updatePromises);
+            
+            results.forEach(result => {
+                if (result.status === 'fulfilled') {
+                    if (result.value.success) {
+                        successCount++;
+                    } else {
+                        errorCount++;
+                    }
+                } else {
+                    errorCount++;
+                }
+            });
+
+            // Save updated data to APIs in background
+            if (successCount > 0) {
+                this.savePortfolioData().catch(err => console.warn('Background portfolio save failed:', err));
+                this.saveWatchlistData().catch(err => console.warn('Background watchlist save failed:', err));
+                
+                // Update UI with new data
+                this.renderDashboard();
+                this.renderSectionContent(this.currentSection);
+                
+                console.log(`Background update completed: ${successCount} stocks updated, ${errorCount} failed`);
+            }
+            
+        } catch (error) {
+            console.error('Error in background stock price update:', error);
+        }
+    }
+
+    // Stop real-time stock updates
+    stopRealTimeStockUpdates() {
+        if (this.stockUpdateInterval) {
+            clearInterval(this.stockUpdateInterval);
+            this.stockUpdateInterval = null;
+            console.log('Real-time stock updates stopped');
+        }
     }
 
     // Animate counters

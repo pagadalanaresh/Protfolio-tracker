@@ -8,6 +8,7 @@ class PortfolioPro {
         this.watchlist = [];
         this.charts = {};
         this.isLoading = false;
+        this.currentSection = 'overview';
         this.currentFilter = 'all';
         this.closedFilter = 'all';
         this.holdingsFilter = 'all';
@@ -23,6 +24,12 @@ class PortfolioPro {
         this.watchlistSortDirection = 'asc';
         this.editingStockId = null;
         this.editingWatchlistId = null;
+        this.sellingStockId = null;
+        this.deletingStockId = null;
+        this.removingWatchlistId = null;
+        this.buyingStockId = null;
+        this.tempWatchlistStock = null;
+        this.currentUser = null;
         
         this.init();
     }
@@ -709,25 +716,520 @@ class PortfolioPro {
         }
     }
 
-    // Placeholder methods for missing functionality
+    // Event binding for UI interactions
     bindEvents() {
-        // Basic event binding - will be expanded as needed
+        // User dropdown events
+        const userProfile = document.getElementById('userProfile');
+        if (userProfile) {
+            userProfile.addEventListener('click', (e) => this.toggleUserDropdown(e));
+        }
+
+        // Outside click to close dropdowns
+        document.addEventListener('click', (e) => this.handleOutsideClick(e));
+
+        // Logout button
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', () => this.handleLogout());
+        }
+
+        // Refresh button
+        const refreshBtn = document.getElementById('refreshBtn');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => this.refreshData());
+        }
+
+        // Search inputs
+        const holdingsSearch = document.getElementById('holdingsSearch');
+        if (holdingsSearch) {
+            holdingsSearch.addEventListener('input', (e) => {
+                this.holdingsSearchTerm = e.target.value;
+                this.renderDashboard();
+            });
+        }
+
+        const watchlistSearch = document.getElementById('watchlistSearch');
+        if (watchlistSearch) {
+            watchlistSearch.addEventListener('input', (e) => {
+                this.watchlistSearchTerm = e.target.value;
+                this.renderWatchlist();
+            });
+        }
+
+        // Filter tabs
+        document.querySelectorAll('.filter-tab').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                const filter = e.target.dataset.filter;
+                const section = e.target.closest('.content-section');
+                
+                if (section && section.id === 'watchlist-section') {
+                    this.watchlistFilter = filter;
+                    this.updateFilterTabs(e.target);
+                    this.renderWatchlist();
+                } else if (section && section.id === 'holdings-section') {
+                    this.holdingsFilter = filter;
+                    this.updateFilterTabs(e.target);
+                    this.renderDashboard();
+                }
+            });
+        });
+
+        // Sidebar navigation
+        document.querySelectorAll('.menu-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                const section = e.currentTarget.dataset.section;
+                if (section) {
+                    this.showSection(section);
+                }
+            });
+        });
+
+        // Mobile navigation
+        document.querySelectorAll('.mobile-nav-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                const section = e.currentTarget.dataset.section;
+                if (section) {
+                    this.showSection(section);
+                }
+            });
+        });
+
+        // Add Stock button events
+        const addStockBtns = document.querySelectorAll('#addStockBtn, #addHoldingBtn');
+        addStockBtns.forEach(btn => {
+            btn.addEventListener('click', () => this.showAddStockModal());
+        });
+
+        // Add Watchlist button events
+        const addWatchlistBtns = document.querySelectorAll('#addWatchlistBtn');
+        addWatchlistBtns.forEach(btn => {
+            btn.addEventListener('click', () => this.showAddWatchlistModal());
+        });
+
         console.log('Events bound successfully');
     }
 
+    // Update filter tab active state
+    updateFilterTabs(activeTab) {
+        const parentContainer = activeTab.closest('.filter-tabs');
+        if (parentContainer) {
+            parentContainer.querySelectorAll('.filter-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            activeTab.classList.add('active');
+        }
+    }
+
+    // Render dashboard with portfolio data
     renderDashboard() {
-        // Basic dashboard rendering - will be expanded as needed
+        this.updatePortfolioSummary();
+        this.renderPortfolioHoldings();
+        this.updateQuickStats();
         console.log('Dashboard rendered successfully');
     }
 
+    // Update portfolio summary statistics
+    updatePortfolioSummary() {
+        if (this.portfolio.length === 0) return;
+
+        const totalInvested = this.portfolio.reduce((sum, stock) => sum + (stock.invested || 0), 0);
+        const totalCurrentValue = this.portfolio.reduce((sum, stock) => sum + (stock.currentValue || 0), 0);
+        const totalPL = totalCurrentValue - totalInvested;
+        const totalPLPercent = totalInvested > 0 ? (totalPL / totalInvested) * 100 : 0;
+
+        // Update main portfolio value
+        const portfolioValueElement = document.querySelector('.portfolio-value .main-value');
+        if (portfolioValueElement) {
+            portfolioValueElement.textContent = this.formatCurrency(totalCurrentValue);
+        }
+
+        // Update portfolio change
+        const portfolioChangeElement = document.querySelector('.portfolio-value .value-change span');
+        if (portfolioChangeElement) {
+            const changeClass = totalPL >= 0 ? 'positive' : 'negative';
+            const changeIcon = totalPL >= 0 ? 'trending-up' : 'trending-down';
+            portfolioChangeElement.parentElement.className = `value-change ${changeClass}`;
+            portfolioChangeElement.parentElement.innerHTML = `
+                <i class="fas fa-${changeIcon}"></i>
+                <span>${totalPL >= 0 ? '+' : ''}${this.formatCurrency(totalPL)} (${totalPLPercent >= 0 ? '+' : ''}${totalPLPercent.toFixed(2)}%) today</span>
+            `;
+        }
+
+        // Update investment summary
+        const summaryStats = document.querySelector('.investment-summary .summary-stats');
+        if (summaryStats) {
+            summaryStats.innerHTML = `
+                <div class="stat-item">
+                    <span class="stat-label">Total Invested</span>
+                    <span class="stat-value">${this.formatCurrency(totalInvested)}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Current Value</span>
+                    <span class="stat-value">${this.formatCurrency(totalCurrentValue)}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Total Gains</span>
+                    <span class="stat-value ${totalPL >= 0 ? 'positive' : 'negative'}">${this.formatCurrency(totalPL)}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Overall Return</span>
+                    <span class="stat-value ${totalPLPercent >= 0 ? 'positive' : 'negative'}">${totalPLPercent >= 0 ? '+' : ''}${totalPLPercent.toFixed(2)}%</span>
+                </div>
+            `;
+        }
+    }
+
+    // Render portfolio holdings
+    renderPortfolioHoldings() {
+        const holdingsGrid = document.getElementById('holdingsGrid');
+        if (!holdingsGrid) return;
+
+        const filteredHoldings = this.getFilteredHoldings();
+
+        if (filteredHoldings.length === 0) {
+            holdingsGrid.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">
+                        <i class="fas fa-chart-pie"></i>
+                    </div>
+                    <h3>No Holdings Found</h3>
+                    <p>Start building your portfolio by adding your first stock.</p>
+                    <button class="btn btn-primary" onclick="portfolioPro.showAddStockModal()">
+                        <i class="fas fa-plus"></i>
+                        Add Your First Stock
+                    </button>
+                </div>
+            `;
+            return;
+        }
+
+        holdingsGrid.innerHTML = filteredHoldings.map(stock => this.createHoldingCard(stock)).join('');
+    }
+
+    // Get filtered holdings based on current filter and search
+    getFilteredHoldings() {
+        let filtered = [...this.portfolio];
+
+        // Apply filter
+        if (this.holdingsFilter === 'gainers') {
+            filtered = filtered.filter(stock => (stock.plPercent || 0) > 0);
+        } else if (this.holdingsFilter === 'losers') {
+            filtered = filtered.filter(stock => (stock.plPercent || 0) < 0);
+        }
+
+        // Apply search
+        if (this.holdingsSearchTerm) {
+            const term = this.holdingsSearchTerm.toLowerCase();
+            filtered = filtered.filter(stock => 
+                (stock.ticker || '').toLowerCase().includes(term) ||
+                (stock.name || '').toLowerCase().includes(term)
+            );
+        }
+
+        return filtered;
+    }
+
+    // Create holding card HTML
+    createHoldingCard(stock) {
+        const plClass = (stock.plPercent || 0) >= 0 ? 'positive' : 'negative';
+        const dayChangeClass = (stock.dayChangePercent || 0) >= 0 ? 'positive' : 'negative';
+
+        return `
+            <div class="holding-card">
+                <div class="holding-header">
+                    <div class="holding-info">
+                        <h3 class="holding-symbol">${stock.ticker}</h3>
+                        <p class="holding-name">${stock.name}</p>
+                    </div>
+                    <div class="holding-actions">
+                        <button class="action-btn edit" onclick="portfolioPro.editStock(${stock.id})" title="Edit">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="action-btn delete" onclick="portfolioPro.deleteStock(${stock.id})" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="holding-metrics">
+                    <div class="metric">
+                        <span class="metric-label">Current Price</span>
+                        <span class="metric-value">${this.formatCurrency(stock.currentPrice || 0)}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Quantity</span>
+                        <span class="metric-value">${stock.quantity || 0}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Invested</span>
+                        <span class="metric-value">${this.formatCurrency(stock.invested || 0)}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Current Value</span>
+                        <span class="metric-value">${this.formatCurrency(stock.currentValue || 0)}</span>
+                    </div>
+                </div>
+                <div class="holding-performance">
+                    <div class="performance-item">
+                        <span class="performance-label">P&L</span>
+                        <span class="performance-value ${plClass}">
+                            ${(stock.pl || 0) >= 0 ? '+' : ''}${this.formatCurrency(stock.pl || 0)}
+                            (${(stock.plPercent || 0) >= 0 ? '+' : ''}${(stock.plPercent || 0).toFixed(2)}%)
+                        </span>
+                    </div>
+                    <div class="performance-item">
+                        <span class="performance-label">Day Change</span>
+                        <span class="performance-value ${dayChangeClass}">
+                            ${(stock.dayChangePercent || 0) >= 0 ? '+' : ''}${(stock.dayChangePercent || 0).toFixed(2)}%
+                        </span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Update quick stats in sidebar
+    updateQuickStats() {
+        if (this.portfolio.length === 0) return;
+
+        const totalValue = this.portfolio.reduce((sum, stock) => sum + (stock.currentValue || 0), 0);
+        const totalInvested = this.portfolio.reduce((sum, stock) => sum + (stock.invested || 0), 0);
+        const totalPL = totalValue - totalInvested;
+        const totalPLPercent = totalInvested > 0 ? (totalPL / totalInvested) * 100 : 0;
+
+        // Update sidebar quick stats
+        const quickStats = document.querySelectorAll('.quick-stat');
+        if (quickStats.length >= 3) {
+            quickStats[0].querySelector('.stat-value').textContent = this.formatCurrency(totalValue, true);
+            
+            const plElement = quickStats[1].querySelector('.stat-value');
+            plElement.textContent = `${totalPL >= 0 ? '+' : ''}${this.formatCurrency(totalPL, true)}`;
+            plElement.className = `stat-value ${totalPL >= 0 ? 'positive' : 'negative'}`;
+            
+            const returnElement = quickStats[2].querySelector('.stat-value');
+            returnElement.textContent = `${totalPLPercent >= 0 ? '+' : ''}${totalPLPercent.toFixed(1)}%`;
+            returnElement.className = `stat-value ${totalPLPercent >= 0 ? 'positive' : 'negative'}`;
+        }
+    }
+
+    // Initialize charts (basic implementation)
     initializeCharts() {
-        // Chart initialization - will be expanded as needed
+        // Initialize basic charts - can be expanded later
+        this.initializePortfolioChart();
+        this.initializeMarketCharts();
         console.log('Charts initialized successfully');
     }
 
+    // Initialize portfolio chart
+    initializePortfolioChart() {
+        const ctx = document.getElementById('heroPortfolioChart');
+        if (!ctx) return;
+
+        // Simple line chart showing portfolio growth
+        const data = {
+            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+            datasets: [{
+                label: 'Portfolio Value',
+                data: [100000, 120000, 115000, 135000, 140000, 145000],
+                borderColor: '#3b82f6',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                tension: 0.4,
+                fill: true
+            }]
+        };
+
+        new Chart(ctx, {
+            type: 'line',
+            data: data,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    x: {
+                        display: false
+                    },
+                    y: {
+                        display: false
+                    }
+                }
+            }
+        });
+    }
+
+    // Initialize market index charts
+    initializeMarketCharts() {
+        const chartIds = ['niftyChart', 'sensexChart', 'bankniftyChart', 'finniftyChart'];
+        
+        chartIds.forEach(chartId => {
+            const ctx = document.getElementById(chartId);
+            if (!ctx) return;
+
+            // Simple line chart for market indices
+            const data = {
+                labels: Array.from({length: 20}, (_, i) => i),
+                datasets: [{
+                    data: Array.from({length: 20}, () => Math.random() * 100 + 50),
+                    borderColor: '#10b981',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.4
+                }]
+            };
+
+            new Chart(ctx, {
+                type: 'line',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: false
+                        },
+                        y: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        });
+    }
+
+    // Refresh data manually
+    refreshData() {
+        this.showLoading();
+        this.loadDataFromServer().then(() => {
+            this.updateStockPrices();
+            this.showNotification('Data refreshed successfully!', 'success');
+        }).catch(error => {
+            console.error('Error refreshing data:', error);
+            this.showNotification('Error refreshing data', 'error');
+        }).finally(() => {
+            this.hideLoading();
+        });
+    }
+
     startRealTimeUpdates() {
-        // Real-time updates - will be expanded as needed
-        console.log('Real-time updates started');
+        console.log('Starting real-time stock price updates...');
+        
+        // Update stock prices every 1 minute (60000 ms)
+        this.priceUpdateInterval = setInterval(async () => {
+            await this.updateStockPrices();
+        }, 60000); // 1 minute
+        
+        // Also update immediately on start
+        setTimeout(() => {
+            this.updateStockPrices();
+        }, 5000); // Wait 5 seconds after page load
+        
+        console.log('Real-time updates started - prices will refresh every 1 minute');
+    }
+
+    // Update stock prices for portfolio and watchlist
+    async updateStockPrices() {
+        if (this.isLoading) {
+            console.log('Skipping price update - already loading');
+            return;
+        }
+
+        console.log('Updating stock prices in background...');
+        
+        try {
+            // Update portfolio prices
+            if (this.portfolio.length > 0) {
+                await this.updatePortfolioPrices();
+            }
+            
+            // Update watchlist prices
+            if (this.watchlist.length > 0) {
+                await this.updateWatchlistPrices();
+            }
+            
+            // Re-render dashboard and watchlist with updated prices
+            this.renderDashboard();
+            this.renderWatchlist();
+            
+            console.log('Stock prices updated successfully');
+        } catch (error) {
+            console.error('Error updating stock prices:', error);
+        }
+    }
+
+    // Update portfolio stock prices
+    async updatePortfolioPrices() {
+        const updatePromises = this.portfolio.map(async (stock) => {
+            try {
+                const stockData = await this.fetchStockData(stock.ticker);
+                
+                // Update stock data
+                stock.currentPrice = stockData.currentPrice;
+                stock.dayChange = stockData.dayChange;
+                stock.dayChangePercent = stockData.dayChangePercent;
+                stock.currentValue = stock.currentPrice * stock.quantity;
+                stock.pl = stock.currentValue - stock.invested;
+                stock.plPercent = ((stock.pl / stock.invested) * 100);
+                stock.lastUpdated = new Date().toISOString();
+                
+                return true;
+            } catch (error) {
+                console.error(`Failed to update price for ${stock.ticker}:`, error.message);
+                return false;
+            }
+        });
+
+        const results = await Promise.allSettled(updatePromises);
+        const successCount = results.filter(result => result.status === 'fulfilled' && result.value).length;
+        
+        if (successCount > 0) {
+            await this.savePortfolio();
+            console.log(`Updated prices for ${successCount}/${this.portfolio.length} portfolio stocks`);
+        }
+    }
+
+    // Update watchlist stock prices
+    async updateWatchlistPrices() {
+        const updatePromises = this.watchlist.map(async (stock) => {
+            try {
+                const stockData = await this.fetchStockData(stock.ticker);
+                
+                // Update stock data
+                stock.currentPrice = stockData.currentPrice;
+                stock.dayChange = stockData.dayChange;
+                stock.dayChangePercent = stockData.dayChangePercent;
+                stock.lastUpdated = new Date().toISOString();
+                
+                return true;
+            } catch (error) {
+                console.error(`Failed to update price for ${stock.ticker}:`, error.message);
+                return false;
+            }
+        });
+
+        const results = await Promise.allSettled(updatePromises);
+        const successCount = results.filter(result => result.status === 'fulfilled' && result.value).length;
+        
+        if (successCount > 0) {
+            await this.saveWatchlist();
+            console.log(`Updated prices for ${successCount}/${this.watchlist.length} watchlist stocks`);
+        }
+    }
+
+    // Stop real-time updates (useful for cleanup)
+    stopRealTimeUpdates() {
+        if (this.priceUpdateInterval) {
+            clearInterval(this.priceUpdateInterval);
+            this.priceUpdateInterval = null;
+            console.log('Real-time updates stopped');
+        }
     }
 
     renderClosedPositions() {
@@ -840,21 +1342,443 @@ class PortfolioPro {
         }
     }
 
-    // Placeholder methods for modal functionality
-    showAddStockModal() { console.log('Add stock modal'); }
-    hideAddStockModal() { console.log('Hide add stock modal'); }
-    showEditStockModal() { console.log('Edit stock modal'); }
-    hideEditStockModal() { console.log('Hide edit stock modal'); }
-    showDeleteModal() { console.log('Delete modal'); }
-    hideDeleteModal() { console.log('Hide delete modal'); }
-    showAddWatchlistModal() { console.log('Add watchlist modal'); }
-    hideAddWatchlistModal() { console.log('Hide add watchlist modal'); }
-    editWatchlistStock() { console.log('Edit watchlist stock'); }
-    showEditWatchlistModal() { console.log('Edit watchlist modal'); }
-    hideEditWatchlistModal() { console.log('Hide edit watchlist modal'); }
-    exportData() { console.log('Export data'); }
-    exportWatchlistData() { console.log('Export watchlist data'); }
-    refreshData() { console.log('Refresh data'); }
+    // Show specific section
+    showSection(sectionName) {
+        // Update current section
+        this.currentSection = sectionName;
+
+        // Hide all sections
+        document.querySelectorAll('.content-section').forEach(section => {
+            section.classList.remove('active');
+        });
+
+        // Show target section
+        const targetSection = document.getElementById(`${sectionName}-section`);
+        if (targetSection) {
+            targetSection.classList.add('active');
+        }
+
+        // Update navigation states
+        this.updateNavigationState(sectionName);
+
+        // Render section-specific content
+        this.renderSectionContent(sectionName);
+    }
+
+    // Update navigation active states
+    updateNavigationState(activeSection) {
+        // Update sidebar
+        document.querySelectorAll('.menu-item').forEach(item => {
+            item.classList.remove('active');
+            if (item.dataset.section === activeSection) {
+                item.classList.add('active');
+            }
+        });
+
+        // Update mobile nav
+        document.querySelectorAll('.mobile-nav-item').forEach(item => {
+            item.classList.remove('active');
+            if (item.dataset.section === activeSection) {
+                item.classList.add('active');
+            }
+        });
+    }
+
+    // Render section-specific content
+    renderSectionContent(sectionName) {
+        switch (sectionName) {
+            case 'overview':
+                this.renderOverview();
+                break;
+            case 'holdings':
+                this.renderHoldings();
+                break;
+            case 'watchlist':
+                this.renderWatchlistSection();
+                break;
+            case 'closed-positions':
+                this.renderClosedPositionsSection();
+                break;
+            case 'transactions':
+                this.renderTransactions();
+                break;
+            case 'analytics':
+                this.renderAnalyticsSection();
+                break;
+            default:
+                console.log(`Rendering ${sectionName} section`);
+        }
+    }
+
+    // Render overview section
+    renderOverview() {
+        this.renderDashboard();
+        setTimeout(() => {
+            this.initializeCharts();
+        }, 100);
+    }
+
+    // Render holdings section
+    renderHoldings() {
+        const holdingsGrid = document.getElementById('holdingsGrid');
+        if (!holdingsGrid) return;
+
+        const filteredHoldings = this.getFilteredHoldings();
+
+        if (filteredHoldings.length === 0) {
+            holdingsGrid.innerHTML = this.renderEmptyState('holdings');
+            return;
+        }
+
+        holdingsGrid.innerHTML = filteredHoldings.map(stock => this.createDetailedHoldingCard(stock)).join('');
+    }
+
+    // Create detailed holding card for holdings section
+    createDetailedHoldingCard(stock) {
+        const plClass = (stock.plPercent || 0) >= 0 ? 'positive' : 'negative';
+        const dayChangeClass = (stock.dayChangePercent || 0) >= 0 ? 'positive' : 'negative';
+
+        return `
+            <div class="holding-card" data-stock-id="${stock.id}">
+                <div class="holding-header">
+                    <div class="holding-info">
+                        <div class="holding-symbol">${stock.ticker || stock.symbol}</div>
+                        <div class="holding-name">${stock.name}</div>
+                    </div>
+                    <div class="holding-change ${dayChangeClass}">
+                        <i class="fas fa-${(stock.dayChangePercent || 0) >= 0 ? 'arrow-up' : 'arrow-down'}"></i>
+                        ${(stock.dayChangePercent || 0) >= 0 ? '+' : ''}${(stock.dayChangePercent || 0).toFixed(2)}%
+                    </div>
+                </div>
+                <div class="holding-stats">
+                    <div class="holding-stat">
+                        <div class="holding-stat-label">Current Price</div>
+                        <div class="holding-stat-value">${this.formatCurrency(stock.currentPrice || 0)}</div>
+                    </div>
+                    <div class="holding-stat">
+                        <div class="holding-stat-label">Quantity</div>
+                        <div class="holding-stat-value">${stock.quantity || 0}</div>
+                    </div>
+                    <div class="holding-stat">
+                        <div class="holding-stat-label">Invested</div>
+                        <div class="holding-stat-value">${this.formatCurrency(stock.invested || 0)}</div>
+                    </div>
+                    <div class="holding-stat">
+                        <div class="holding-stat-label">Current Value</div>
+                        <div class="holding-stat-value">${this.formatCurrency(stock.currentValue || 0)}</div>
+                    </div>
+                    <div class="holding-stat">
+                        <div class="holding-stat-label">P&L</div>
+                        <div class="holding-stat-value ${plClass}">
+                            ${this.formatCurrency(stock.pl || 0)}
+                        </div>
+                    </div>
+                    <div class="holding-stat">
+                        <div class="holding-stat-label">P&L %</div>
+                        <div class="holding-stat-value ${plClass}">
+                            ${(stock.plPercent || 0) >= 0 ? '+' : ''}${(stock.plPercent || 0).toFixed(2)}%
+                        </div>
+                    </div>
+                </div>
+                <div class="holding-actions">
+                    <button class="holding-btn" onclick="portfolioPro.showEditStockModal(${stock.id})">
+                        <i class="fas fa-edit"></i>
+                        Edit
+                    </button>
+                    <button class="holding-btn primary" onclick="portfolioPro.showSellStockModal(${stock.id})">
+                        <i class="fas fa-arrow-down"></i>
+                        Sell
+                    </button>
+                    <button class="holding-btn danger" onclick="portfolioPro.showDeleteConfirmation(${stock.id}, '${stock.ticker || stock.symbol}')">
+                        <i class="fas fa-trash"></i>
+                        Delete
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    // Render watchlist section
+    renderWatchlistSection() {
+        const watchlistGrid = document.getElementById('watchlistGrid');
+        if (!watchlistGrid) return;
+
+        const filteredWatchlist = this.getFilteredWatchlist();
+
+        if (filteredWatchlist.length === 0) {
+            watchlistGrid.innerHTML = this.renderEmptyState('watchlist');
+            return;
+        }
+
+        watchlistGrid.innerHTML = filteredWatchlist.map(stock => this.createWatchlistCard(stock)).join('');
+    }
+
+    // Create watchlist card for watchlist section
+    createWatchlistCard(stock) {
+        const dayChangeClass = (stock.dayChangePercent || 0) >= 0 ? 'positive' : 'negative';
+
+        return `
+            <div class="watchlist-card" data-stock-id="${stock.id}">
+                <div class="watchlist-header">
+                    <div class="watchlist-info">
+                        <div class="watchlist-symbol">${stock.ticker || stock.symbol}</div>
+                        <div class="watchlist-name">${stock.name}</div>
+                    </div>
+                    <div class="watchlist-change ${dayChangeClass}">
+                        <i class="fas fa-${(stock.dayChangePercent || 0) >= 0 ? 'arrow-up' : 'arrow-down'}"></i>
+                        ${(stock.dayChangePercent || 0) >= 0 ? '+' : ''}${(stock.dayChangePercent || 0).toFixed(2)}%
+                    </div>
+                </div>
+                <div class="watchlist-stats">
+                    <div class="watchlist-stat">
+                        <div class="watchlist-stat-label">Current Price</div>
+                        <div class="watchlist-stat-value">${this.formatCurrency(stock.currentPrice || 0)}</div>
+                    </div>
+                    <div class="watchlist-stat">
+                        <div class="watchlist-stat-label">Day Change</div>
+                        <div class="watchlist-stat-value ${dayChangeClass}">
+                            ${this.formatCurrency(stock.dayChange || 0)}
+                        </div>
+                    </div>
+                    <div class="watchlist-stat">
+                        <div class="watchlist-stat-label">Target Price</div>
+                        <div class="watchlist-stat-value">
+                            ${stock.targetPrice ? this.formatCurrency(stock.targetPrice) : 'Not set'}
+                        </div>
+                    </div>
+                    <div class="watchlist-stat">
+                        <div class="watchlist-stat-label">Stop Loss</div>
+                        <div class="watchlist-stat-value">
+                            ${stock.stopLoss ? this.formatCurrency(stock.stopLoss) : 'Not set'}
+                        </div>
+                    </div>
+                </div>
+                <div class="watchlist-actions">
+                    <button class="watchlist-btn success" onclick="portfolioPro.showBuyFromWatchlistModal(${stock.id})">
+                        <i class="fas fa-plus"></i>
+                        Buy
+                    </button>
+                    <button class="watchlist-btn" onclick="portfolioPro.showEditWatchlistModal(${stock.id})">
+                        <i class="fas fa-edit"></i>
+                        Edit
+                    </button>
+                    <button class="watchlist-btn danger" onclick="portfolioPro.showRemoveWatchlistConfirmation(${stock.id}, '${stock.ticker || stock.symbol}')">
+                        <i class="fas fa-eye-slash"></i>
+                        Remove
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    // Render closed positions section
+    renderClosedPositionsSection() {
+        const closedPositionsGrid = document.getElementById('closedPositionsGrid');
+        if (!closedPositionsGrid) return;
+
+        if (this.closedPositions.length === 0) {
+            closedPositionsGrid.innerHTML = this.renderEmptyState('closedPositions');
+            return;
+        }
+
+        closedPositionsGrid.innerHTML = this.closedPositions.map(position => this.createClosedPositionCard(position)).join('');
+    }
+
+    // Create closed position card
+    createClosedPositionCard(position) {
+        const pl = position.pl || position.finalPL || 0;
+        const plPercent = position.plPercent || position.finalPLPercent || 0;
+        const plClass = pl >= 0 ? 'positive' : 'negative';
+
+        return `
+            <div class="closed-position-card ${pl >= 0 ? 'profit' : 'loss'}" data-position-id="${position.id}">
+                <div class="closed-header">
+                    <div class="closed-info">
+                        <div class="closed-symbol">${position.ticker || position.symbol}</div>
+                        <div class="closed-name">${position.name}</div>
+                    </div>
+                    <div class="closed-pl ${plClass}">
+                        <i class="fas fa-${pl >= 0 ? 'arrow-up' : 'arrow-down'}"></i>
+                        ${plPercent >= 0 ? '+' : ''}${plPercent.toFixed(2)}%
+                    </div>
+                </div>
+                <div class="closed-stats">
+                    <div class="closed-stat">
+                        <div class="closed-stat-label">Buy Price</div>
+                        <div class="closed-stat-value">${this.formatCurrency(position.buyPrice || 0)}</div>
+                    </div>
+                    <div class="closed-stat">
+                        <div class="closed-stat-label">Sell Price</div>
+                        <div class="closed-stat-value">${this.formatCurrency(position.sellPrice || position.closePrice || 0)}</div>
+                    </div>
+                    <div class="closed-stat">
+                        <div class="closed-stat-label">Quantity</div>
+                        <div class="closed-stat-value">${position.quantity || 0}</div>
+                    </div>
+                    <div class="closed-stat">
+                        <div class="closed-stat-label">Invested</div>
+                        <div class="closed-stat-value">${this.formatCurrency(position.invested || 0)}</div>
+                    </div>
+                    <div class="closed-stat">
+                        <div class="closed-stat-label">Realized</div>
+                        <div class="closed-stat-value">${this.formatCurrency(position.realized || position.closeValue || 0)}</div>
+                    </div>
+                    <div class="closed-stat">
+                        <div class="closed-stat-label">P&L</div>
+                        <div class="closed-stat-value ${plClass}">
+                            ${this.formatCurrency(pl)}
+                        </div>
+                    </div>
+                </div>
+                <div class="closed-dates">
+                    <div class="closed-date-item">
+                        <div class="closed-date-label">Buy Date</div>
+                        <div class="closed-date-value">${position.buyDate ? new Date(position.buyDate).toLocaleDateString() : (position.purchaseDate ? new Date(position.purchaseDate).toLocaleDateString() : 'N/A')}</div>
+                    </div>
+                    <div class="closed-date-item">
+                        <div class="closed-date-label">Sell Date</div>
+                        <div class="closed-date-value">${position.sellDate ? new Date(position.sellDate).toLocaleDateString() : (position.closedDate ? new Date(position.closedDate).toLocaleDateString() : 'N/A')}</div>
+                    </div>
+                    <div class="closed-date-item">
+                        <div class="closed-date-label">Holding Period</div>
+                        <div class="closed-date-value">${position.holdingPeriod || 'N/A'}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Render transactions section
+    renderTransactions() {
+        console.log('Rendering transactions section - Coming Soon!');
+    }
+
+    // Render analytics section
+    renderAnalyticsSection() {
+        console.log('Rendering analytics section - Coming Soon!');
+    }
+
+    // Render empty state
+    renderEmptyState(type) {
+        const emptyStates = {
+            holdings: `
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="fas fa-chart-pie"></i>
+                    </div>
+                    <div class="empty-state-content">
+                        <h3>No Holdings Yet</h3>
+                        <p>Start building your portfolio by adding your first stock investment.</p>
+                        <button class="btn btn-primary" onclick="portfolioPro.showAddStockModal()">
+                            <i class="fas fa-plus"></i>
+                            Add Your First Stock
+                        </button>
+                    </div>
+                </div>
+            `,
+            watchlist: `
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="fas fa-eye"></i>
+                    </div>
+                    <div class="empty-state-content">
+                        <h3>No Stocks in Watchlist</h3>
+                        <p>Add stocks to your watchlist to track their performance and get insights.</p>
+                        <button class="btn btn-primary" onclick="portfolioPro.showAddWatchlistModal()">
+                            <i class="fas fa-plus"></i>
+                            Add to Watchlist
+                        </button>
+                    </div>
+                </div>
+            `,
+            closedPositions: `
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="fas fa-history"></i>
+                    </div>
+                    <div class="empty-state-content">
+                        <h3>No Closed Positions</h3>
+                        <p>Your completed trades and sold positions will appear here.</p>
+                        <button class="btn btn-secondary" onclick="portfolioPro.showSection('holdings')">
+                            <i class="fas fa-chart-pie"></i>
+                            View Holdings
+                        </button>
+                    </div>
+                </div>
+            `
+        };
+        
+        return emptyStates[type] || '';
+    }
+
+    // Modal functionality
+    showAddStockModal() { 
+        this.showNotification('Add stock functionality coming soon!', 'info');
+    }
+    
+    hideAddStockModal() { 
+        console.log('Hide add stock modal'); 
+    }
+    
+    showEditStockModal(stockId) { 
+        this.showNotification('Edit stock functionality coming soon!', 'info');
+    }
+    
+    hideEditStockModal() { 
+        console.log('Hide edit stock modal'); 
+    }
+    
+    showSellStockModal(stockId) { 
+        this.showNotification('Sell stock functionality coming soon!', 'info');
+    }
+    
+    showDeleteConfirmation(stockId, symbol) { 
+        this.showNotification('Delete stock functionality coming soon!', 'info');
+    }
+    
+    showDeleteModal() { 
+        console.log('Delete modal'); 
+    }
+    
+    hideDeleteModal() { 
+        console.log('Hide delete modal'); 
+    }
+    
+    showAddWatchlistModal() { 
+        this.showNotification('Add watchlist functionality coming soon!', 'info');
+    }
+    
+    hideAddWatchlistModal() { 
+        console.log('Hide add watchlist modal'); 
+    }
+    
+    editWatchlistStock(stockId) { 
+        this.showEditWatchlistModal(stockId);
+    }
+    
+    showEditWatchlistModal(stockId) { 
+        this.showNotification('Edit watchlist functionality coming soon!', 'info');
+    }
+    
+    hideEditWatchlistModal() { 
+        console.log('Hide edit watchlist modal'); 
+    }
+    
+    showBuyFromWatchlistModal(stockId) { 
+        this.showNotification('Buy from watchlist functionality coming soon!', 'info');
+    }
+    
+    showRemoveWatchlistConfirmation(stockId, symbol) { 
+        this.showNotification('Remove watchlist functionality coming soon!', 'info');
+    }
+    
+    exportData() { 
+        this.showNotification('Export functionality coming soon!', 'info');
+    }
+    
+    exportWatchlistData() { 
+        this.showNotification('Export watchlist functionality coming soon!', 'info');
+    }
 }
 
 // Initialize the application when DOM is loaded
