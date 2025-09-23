@@ -1791,6 +1791,165 @@ body {
     margin-top: 4px;
 }
 
+/* Stock Search Auto-suggestion Styles */
+.stock-search-container {
+    position: relative;
+}
+
+.stock-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--gray-200);
+    border-top: none;
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    z-index: 1000;
+    max-height: 300px;
+    overflow-y: auto;
+    display: none;
+}
+
+.suggestion-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-md);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    border-bottom: 1px solid var(--gray-100);
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-item:hover,
+.suggestion-item.active {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.suggestion-item.active {
+    background: var(--primary-color);
+    color: var(--text-white);
+}
+
+.suggestion-symbol {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: 2px;
+}
+
+.suggestion-item.active .suggestion-symbol {
+    color: var(--text-white);
+}
+
+.suggestion-name {
+    font-size: 12px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 200px;
+}
+
+.suggestion-item.active .suggestion-name {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.suggestion-exchange {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: var(--bg-tertiary);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.suggestion-item.active .suggestion-exchange {
+    background: rgba(255, 255, 255, 0.2);
+    color: var(--text-white);
+}
+
+/* Focus styles for stock search input */
+.stock-search-container input:focus {
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    border-bottom-color: var(--primary-color);
+}
+
+.stock-search-container input:focus + .stock-suggestions {
+    border-top: 1px solid var(--primary-color);
+}
+
+/* Loading state for suggestions */
+.stock-suggestions.loading {
+    display: block;
+    padding: var(--spacing-md);
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.stock-suggestions.loading::before {
+    content: '';
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--gray-200);
+    border-top: 2px solid var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-right: var(--spacing-sm);
+}
+
+/* Responsive suggestions */
+@media (max-width: 768px) {
+    .stock-suggestions {
+        max-height: 250px;
+    }
+    
+    .suggestion-item {
+        padding: var(--spacing-sm) var(--spacing-md);
+    }
+    
+    .suggestion-name {
+        max-width: 150px;
+    }
+}
+
+@media (max-width: 480px) {
+    .stock-suggestions {
+        max-height: 200px;
+    }
+    
+    .suggestion-item {
+        padding: var(--spacing-sm);
+    }
+    
+    .suggestion-name {
+        max-width: 120px;
+    }
+    
+    .suggestion-symbol {
+        font-size: 13px;
+    }
+    
+    .suggestion-name {
+        font-size: 11px;
+    }
+    
+    .suggestion-exchange {
+        font-size: 9px;
+        padding: 1px 4px;
+    }
+}
+
 /* Loading Overlay */
 .loading-overlay {
     position: fixed;

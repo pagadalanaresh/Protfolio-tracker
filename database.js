@@ -41,7 +41,7 @@ async function initializeDatabase() {
     // Create portfolio table with user_id foreign key
     await client.query(`
       CREATE TABLE IF NOT EXISTS portfolio (
-        id BIGINT,
+        id BIGSERIAL,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         ticker VARCHAR(50) NOT NULL,
         name VARCHAR(255) NOT NULL,
@@ -68,7 +68,7 @@ async function initializeDatabase() {
     // Create closed_positions table with user_id foreign key
     await client.query(`
       CREATE TABLE IF NOT EXISTS closed_positions (
-        id BIGINT,
+        id BIGSERIAL,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         ticker VARCHAR(50) NOT NULL,
         name VARCHAR(255) NOT NULL,
@@ -95,7 +95,7 @@ async function initializeDatabase() {
     // Create watchlist table with user_id foreign key
     await client.query(`
       CREATE TABLE IF NOT EXISTS watchlist (
-        id BIGINT,
+        id BIGSERIAL,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         ticker VARCHAR(50) NOT NULL,
         name VARCHAR(255) NOT NULL,
@@ -299,16 +299,16 @@ const portfolioOperations = {
       // Clear existing data for this user
       await client.query('DELETE FROM portfolio WHERE user_id = $1', [userId]);
       
-      // Insert new data
+      // Insert new data (let database auto-generate IDs)
       for (const item of portfolioData) {
         await client.query(`
           INSERT INTO portfolio (
-            id, user_id, ticker, name, buy_price, current_price, quantity, invested, 
+            user_id, ticker, name, buy_price, current_price, quantity, invested, 
             current_value, purchase_date, last_updated, pl, pl_percent, 
             day_change, day_change_percent, target_price, stop_loss, position
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
         `, [
-          item.id, userId, item.ticker, item.name, item.buyPrice, item.currentPrice,
+          userId, item.ticker, item.name, item.buyPrice, item.currentPrice,
           item.quantity, item.invested, item.currentValue, item.purchaseDate,
           item.lastUpdated, item.pl, item.plPercent, item.dayChange,
           item.dayChangePercent, item.targetPrice, item.stopLoss, item.position
@@ -367,17 +367,17 @@ const closedPositionsOperations = {
       // Clear existing data for this user
       await client.query('DELETE FROM closed_positions WHERE user_id = $1', [userId]);
       
-      // Insert new data
+      // Insert new data (let database auto-generate IDs)
       for (const item of closedPositionsData) {
         await client.query(`
           INSERT INTO closed_positions (
-            id, user_id, ticker, name, buy_price, current_price, quantity, invested,
+            user_id, ticker, name, buy_price, current_price, quantity, invested,
             current_value, purchase_date, last_updated, pl, pl_percent,
             close_price, close_value, final_pl, final_pl_percent,
             closed_date, holding_period
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         `, [
-          item.id, userId, item.ticker, item.name, item.buyPrice, item.currentPrice,
+          userId, item.ticker, item.name, item.buyPrice, item.currentPrice,
           item.quantity, item.invested, item.currentValue, item.purchaseDate,
           item.lastUpdated, item.pl, item.plPercent, item.closePrice,
           item.closeValue, item.finalPL, item.finalPLPercent, item.closedDate,
@@ -431,15 +431,15 @@ const watchlistOperations = {
       // Delete existing watchlist items for this user
       await client.query('DELETE FROM watchlist WHERE user_id = $1', [userId]);
       
-      // Insert new watchlist items
+      // Insert new watchlist items (let database auto-generate IDs)
       for (const item of watchlistItems) {
         await client.query(`
           INSERT INTO watchlist (
-            id, user_id, ticker, name, sector, current_price, day_change, 
+            user_id, ticker, name, sector, current_price, day_change, 
             day_change_percent, target_price, stop_loss, notes, added_date, last_updated
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         `, [
-          item.id, userId, item.ticker || item.symbol, item.name, item.sector,
+          userId, item.ticker || item.symbol, item.name, item.sector,
           item.currentPrice, item.dayChange, item.dayChangePercent,
           item.targetPrice, item.stopLoss, item.notes, item.addedDate, item.lastUpdated
         ]);

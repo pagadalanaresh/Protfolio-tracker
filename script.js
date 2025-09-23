@@ -545,7 +545,7 @@ class PortfolioPro {
             const watchlistStock = {
                 id: Date.now(),
                 ticker: ticker,
-                name: stockData.name,
+                name: this.selectedWatchlistStockName || stockData.name,
                 sector: 'Technology', // Default sector
                 currentPrice: stockData.currentPrice,
                 dayChange: stockData.dayChange || 0,
@@ -561,6 +561,9 @@ class PortfolioPro {
             await this.saveWatchlist();
             this.renderWatchlist();
             this.hideAddWatchlistModal();
+            
+            // Clear the selected stock name
+            this.selectedWatchlistStockName = null;
             
             this.showNotification('Stock added to watchlist successfully!', 'success');
         } catch (error) {
@@ -1121,17 +1124,17 @@ class PortfolioPro {
     startRealTimeUpdates() {
         console.log('Starting real-time stock price updates...');
         
-        // Update stock prices every 1 minute (60000 ms)
+        // Update stock prices every 3 minutes (180000 ms)
         this.priceUpdateInterval = setInterval(async () => {
             await this.updateStockPrices();
-        }, 60000); // 1 minute
+        }, 180000); // 3 minutes
         
         // Also update immediately on start
         setTimeout(() => {
             this.updateStockPrices();
         }, 5000); // Wait 5 seconds after page load
         
-        console.log('Real-time updates started - prices will refresh every 1 minute');
+        console.log('Real-time updates started - prices will refresh every 3 minutes');
     }
 
     // Update stock prices for portfolio and watchlist
@@ -1744,12 +1747,202 @@ class PortfolioPro {
         console.log('Hide delete modal'); 
     }
     
-    showAddWatchlistModal() { 
-        this.showNotification('Add watchlist functionality coming soon!', 'info');
+    // Show add watchlist modal with auto-suggestion
+    showAddWatchlistModal() {
+        const modalHTML = `
+            <div id="addWatchlistModal" class="modal-overlay active">
+                <div class="modal">
+                    <div class="modal-header">
+                        <h3>Add Stock to Watchlist</h3>
+                        <button class="modal-close" onclick="portfolioPro.hideAddWatchlistModal()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="addWatchlistForm">
+                            <div class="form-group">
+                                <label for="watchlistStockSymbol">Stock Symbol</label>
+                                <div class="stock-search-container">
+                                    <input type="text" id="watchlistStockSymbol" placeholder="Enter stock symbol (e.g., RELIANCE)" required autocomplete="off">
+                                    <div id="watchlistStockSuggestions" class="stock-suggestions"></div>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="watchlistTargetPrice">Target Price (Optional)</label>
+                                    <input type="number" id="watchlistTargetPrice" step="0.01" placeholder="0.00">
+                                </div>
+                                <div class="form-group">
+                                    <label for="watchlistStopLoss">Stop Loss (Optional)</label>
+                                    <input type="number" id="watchlistStopLoss" step="0.01" placeholder="0.00">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="watchlistNotes">Notes (Optional)</label>
+                                <textarea id="watchlistNotes" placeholder="Add your notes about this stock..." rows="3"></textarea>
+                            </div>
+                            <div class="form-actions">
+                                <button type="button" class="btn secondary" onclick="portfolioPro.hideAddWatchlistModal()">Cancel</button>
+                                <button type="submit" class="btn primary">Add to Watchlist</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Remove any existing modal
+        const existingModal = document.getElementById('addWatchlistModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+
+        // Add modal to page
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        document.body.style.overflow = 'hidden';
+
+        // Bind form submit event
+        document.getElementById('addWatchlistForm').addEventListener('submit', (e) => this.handleAddWatchlistStock(e));
+
+        // Setup auto-suggestion for stock symbol input
+        this.setupWatchlistStockAutoSuggestion();
+
+        // Focus on the stock symbol input
+        setTimeout(() => {
+            document.getElementById('watchlistStockSymbol').focus();
+        }, 100);
     }
     
-    hideAddWatchlistModal() { 
-        console.log('Hide add watchlist modal'); 
+    hideAddWatchlistModal() {
+        const modal = document.getElementById('addWatchlistModal');
+        if (modal) {
+            modal.classList.remove('active');
+            setTimeout(() => {
+                modal.remove();
+                document.body.style.overflow = '';
+            }, 300);
+        }
+    }
+
+    // Setup auto-suggestion for watchlist stock symbol input
+    setupWatchlistStockAutoSuggestion() {
+        const input = document.getElementById('watchlistStockSymbol');
+        const suggestionsContainer = document.getElementById('watchlistStockSuggestions');
+        
+        if (!input || !suggestionsContainer) return;
+
+        let searchTimeout;
+        let currentSuggestions = [];
+
+        input.addEventListener('input', (e) => {
+            const query = e.target.value.trim();
+            
+            // Clear previous timeout
+            if (searchTimeout) {
+                clearTimeout(searchTimeout);
+            }
+
+            // Hide suggestions if query is too short
+            if (query.length < 2) {
+                suggestionsContainer.style.display = 'none';
+                return;
+            }
+
+            // Debounce search requests
+            searchTimeout = setTimeout(async () => {
+                try {
+                    const response = await fetch(`/api/stocks/search?q=${encodeURIComponent(query)}`);
+                    if (response.ok) {
+                        const suggestions = await response.json();
+                        currentSuggestions = suggestions;
+                        this.renderWatchlistStockSuggestions(suggestions, suggestionsContainer);
+                    }
+                } catch (error) {
+                    console.error('Error fetching stock suggestions:', error);
+                    suggestionsContainer.style.display = 'none';
+                }
+            }, 300);
+        });
+
+        // Handle keyboard navigation
+        input.addEventListener('keydown', (e) => {
+            const suggestionItems = suggestionsContainer.querySelectorAll('.suggestion-item');
+            const activeSuggestion = suggestionsContainer.querySelector('.suggestion-item.active');
+            
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (activeSuggestion) {
+                    activeSuggestion.classList.remove('active');
+                    const next = activeSuggestion.nextElementSibling;
+                    if (next) {
+                        next.classList.add('active');
+                    } else {
+                        suggestionItems[0]?.classList.add('active');
+                    }
+                } else {
+                    suggestionItems[0]?.classList.add('active');
+                }
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (activeSuggestion) {
+                    activeSuggestion.classList.remove('active');
+                    const prev = activeSuggestion.previousElementSibling;
+                    if (prev) {
+                        prev.classList.add('active');
+                    } else {
+                        suggestionItems[suggestionItems.length - 1]?.classList.add('active');
+                    }
+                } else {
+                    suggestionItems[suggestionItems.length - 1]?.classList.add('active');
+                }
+            } else if (e.key === 'Enter') {
+                if (activeSuggestion) {
+                    e.preventDefault();
+                    activeSuggestion.click();
+                }
+            } else if (e.key === 'Escape') {
+                suggestionsContainer.style.display = 'none';
+            }
+        });
+
+        // Hide suggestions when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!input.contains(e.target) && !suggestionsContainer.contains(e.target)) {
+                suggestionsContainer.style.display = 'none';
+            }
+        });
+    }
+
+    // Render stock suggestions for watchlist
+    renderWatchlistStockSuggestions(suggestions, container) {
+        if (!suggestions || suggestions.length === 0) {
+            container.style.display = 'none';
+            return;
+        }
+
+        container.innerHTML = suggestions.map(stock => `
+            <div class="suggestion-item" data-symbol="${stock.symbol}" data-name="${stock.name}">
+                <div class="suggestion-symbol">${stock.symbol}</div>
+                <div class="suggestion-name">${stock.name}</div>
+                <div class="suggestion-exchange">${stock.exchange}</div>
+            </div>
+        `).join('');
+
+        // Add click handlers for suggestions
+        container.querySelectorAll('.suggestion-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const symbol = item.dataset.symbol;
+                const name = item.dataset.name;
+                
+                document.getElementById('watchlistStockSymbol').value = symbol;
+                container.style.display = 'none';
+                
+                // Store the selected stock name for later use
+                this.selectedWatchlistStockName = name;
+            });
+        });
+
+        container.style.display = 'block';
     }
     
     editWatchlistStock(stockId) { 

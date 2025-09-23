@@ -655,6 +655,52 @@ app.post('/api/watchlist', authenticateUser, async (req, res) => {
   }
 });
 
+// Stock search endpoint for auto-suggestions
+app.get('/api/stocks/search', async (req, res) => {
+  try {
+    const query = req.query.q;
+    if (!query || query.length < 2) {
+      return res.json([]);
+    }
+
+    // Use Yahoo Finance search API
+    const proxyUrl = 'https://api.allorigins.win/raw?url=';
+    const yahooSearchUrl = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=10&newsCount=0`;
+    const fullUrl = proxyUrl + encodeURIComponent(yahooSearchUrl);
+    
+    const response = await fetch(fullUrl);
+    if (!response.ok) {
+      throw new Error(`Yahoo Finance API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    if (data.quotes) {
+      // Filter for Indian stocks (NSE/BSE) and format results
+      const indianStocks = data.quotes
+        .filter(quote => 
+          quote.symbol && 
+          (quote.symbol.endsWith('.NS') || quote.symbol.endsWith('.BO')) &&
+          quote.shortname
+        )
+        .map(quote => ({
+          symbol: quote.symbol.replace('.NS', '').replace('.BO', ''),
+          name: quote.shortname || quote.longname,
+          exchange: quote.symbol.endsWith('.NS') ? 'NSE' : 'BSE',
+          fullSymbol: quote.symbol
+        }))
+        .slice(0, 8); // Limit to 8 suggestions
+      
+      res.json(indianStocks);
+    } else {
+      res.json([]);
+    }
+  } catch (error) {
+    console.error('Stock search error:', error);
+    res.status(500).json({ error: 'Failed to search stocks' });
+  }
+});
+
 // Database status endpoint
 app.get('/api/db-status', async (req, res) => {
   try {
