@@ -110,26 +110,21 @@ async function authenticateUser(req, res, next) {
       return res.status(401).json({ authenticated: false, message: 'No session token' });
     }
 
-    if (isDatabaseAvailable) {
-      const session = await userOperations.findSession(sessionToken);
-      if (!session) {
-        return res.status(401).json({ authenticated: false, message: 'Invalid session' });
-      }
-      
-      req.user = {
-        id: session.user_id,
-        username: session.username,
-        email: session.email
-      };
-    } else {
-      // In fallback mode, we can't authenticate users
-      return res.status(503).json({ authenticated: false, message: 'Authentication requires database connection' });
+    const session = await userOperations.findSession(sessionToken);
+    if (!session) {
+      return res.status(401).json({ authenticated: false, message: 'Invalid session' });
     }
+    
+    req.user = {
+      id: session.user_id,
+      username: session.username,
+      email: session.email
+    };
     
     next();
   } catch (error) {
     console.error('Authentication error:', error);
-    res.status(500).json({ authenticated: false, message: 'Authentication error' });
+    throw new Error(`Authentication failed: ${error.message}`);
   }
 }
 
@@ -145,10 +140,10 @@ app.get('/api/auth/check', async (req, res) => {
   const timestamp = new Date().toISOString();
   try {
     const sessionToken = req.cookies.sessionToken;
-    console.log(`[${timestamp}] Auth check - Session token present: ${!!sessionToken}, DB available: ${isDatabaseAvailable}`);
+    console.log(`[${timestamp}] Auth check - Session token present: ${!!sessionToken}`);
     
-    if (!sessionToken || !isDatabaseAvailable) {
-      console.log(`[${timestamp}] Auth check failed - No session token or DB unavailable`);
+    if (!sessionToken) {
+      console.log(`[${timestamp}] Auth check failed - No session token`);
       return res.json({ authenticated: false });
     }
 
@@ -168,7 +163,7 @@ app.get('/api/auth/check', async (req, res) => {
     });
   } catch (error) {
     console.error(`[${timestamp}] Auth check error:`, error);
-    res.json({ authenticated: false });
+    throw new Error(`Authentication check failed: ${error.message}`);
   }
 });
 
@@ -176,12 +171,7 @@ app.get('/api/auth/check', async (req, res) => {
 app.post('/api/auth/signup', async (req, res) => {
   const timestamp = new Date().toISOString();
   try {
-    console.log(`[${timestamp}] Signup attempt - DB available: ${isDatabaseAvailable}`);
-    
-    if (!isDatabaseAvailable) {
-      console.log(`[${timestamp}] Signup failed - Database not available`);
-      return res.status(503).json({ success: false, message: 'Database connection required for user registration' });
-    }
+    console.log(`[${timestamp}] Signup attempt`);
 
     const { username, email, phone, password } = req.body;
 
@@ -230,7 +220,7 @@ app.post('/api/auth/signup', async (req, res) => {
     });
   } catch (error) {
     console.error(`[${timestamp}] Signup error:`, error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    throw new Error(`User signup failed: ${error.message}`);
   }
 });
 
@@ -238,12 +228,7 @@ app.post('/api/auth/signup', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   const timestamp = new Date().toISOString();
   try {
-    console.log(`[${timestamp}] Login attempt - DB available: ${isDatabaseAvailable}`);
-    
-    if (!isDatabaseAvailable) {
-      console.log(`[${timestamp}] Login failed - Database not available`);
-      return res.status(503).json({ success: false, message: 'Database connection required for login' });
-    }
+    console.log(`[${timestamp}] Login attempt`);
 
     const { username, password } = req.body;
 
@@ -299,7 +284,7 @@ app.post('/api/auth/login', async (req, res) => {
     });
   } catch (error) {
     console.error(`[${timestamp}] Login error:`, error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    throw new Error(`User login failed: ${error.message}`);
   }
 });
 
@@ -308,7 +293,7 @@ app.post('/api/auth/logout', async (req, res) => {
   try {
     const sessionToken = req.cookies.sessionToken;
     
-    if (sessionToken && isDatabaseAvailable) {
+    if (sessionToken) {
       await userOperations.deleteSession(sessionToken);
     }
 
@@ -316,7 +301,7 @@ app.post('/api/auth/logout', async (req, res) => {
     res.json({ success: true, message: 'Logged out successfully' });
   } catch (error) {
     console.error('Logout error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    throw new Error(`User logout failed: ${error.message}`);
   }
 });
 
@@ -331,25 +316,21 @@ async function authenticateAdmin(req, res, next) {
       return res.status(401).json({ authenticated: false, message: 'No admin session token' });
     }
 
-    if (isDatabaseAvailable) {
-      const session = await adminOperations.findSession(adminSessionToken);
-      if (!session) {
-        return res.status(401).json({ authenticated: false, message: 'Invalid admin session' });
-      }
-      
-      req.admin = {
-        id: session.admin_id,
-        username: session.username,
-        email: session.email
-      };
-    } else {
-      return res.status(503).json({ authenticated: false, message: 'Admin authentication requires database connection' });
+    const session = await adminOperations.findSession(adminSessionToken);
+    if (!session) {
+      return res.status(401).json({ authenticated: false, message: 'Invalid admin session' });
     }
+    
+    req.admin = {
+      id: session.admin_id,
+      username: session.username,
+      email: session.email
+    };
     
     next();
   } catch (error) {
     console.error('Admin authentication error:', error);
-    res.status(500).json({ authenticated: false, message: 'Admin authentication error' });
+    throw new Error(`Admin authentication failed: ${error.message}`);
   }
 }
 
@@ -358,10 +339,10 @@ app.get('/api/admin/auth/check', async (req, res) => {
   const timestamp = new Date().toISOString();
   try {
     const adminSessionToken = req.cookies.adminSessionToken;
-    console.log(`[${timestamp}] Admin auth check - Session token present: ${!!adminSessionToken}, DB available: ${isDatabaseAvailable}`);
+    console.log(`[${timestamp}] Admin auth check - Session token present: ${!!adminSessionToken}`);
     
-    if (!adminSessionToken || !isDatabaseAvailable) {
-      console.log(`[${timestamp}] Admin auth check failed - No session token or DB unavailable`);
+    if (!adminSessionToken) {
+      console.log(`[${timestamp}] Admin auth check failed - No session token`);
       return res.json({ authenticated: false });
     }
 
@@ -381,7 +362,7 @@ app.get('/api/admin/auth/check', async (req, res) => {
     });
   } catch (error) {
     console.error(`[${timestamp}] Admin auth check error:`, error);
-    res.json({ authenticated: false });
+    throw new Error(`Admin authentication check failed: ${error.message}`);
   }
 });
 
@@ -389,12 +370,7 @@ app.get('/api/admin/auth/check', async (req, res) => {
 app.post('/api/admin/auth/login', async (req, res) => {
   const timestamp = new Date().toISOString();
   try {
-    console.log(`[${timestamp}] Admin login attempt - DB available: ${isDatabaseAvailable}`);
-    
-    if (!isDatabaseAvailable) {
-      console.log(`[${timestamp}] Admin login failed - Database not available`);
-      return res.status(503).json({ success: false, message: 'Database connection required for admin login' });
-    }
+    console.log(`[${timestamp}] Admin login attempt`);
 
     const { username, password } = req.body;
 
@@ -451,7 +427,7 @@ app.post('/api/admin/auth/login', async (req, res) => {
     });
   } catch (error) {
     console.error(`[${timestamp}] Admin login error:`, error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    throw new Error(`Admin login failed: ${error.message}`);
   }
 });
 
@@ -460,7 +436,7 @@ app.post('/api/admin/auth/logout', async (req, res) => {
   try {
     const adminSessionToken = req.cookies.adminSessionToken;
     
-    if (adminSessionToken && isDatabaseAvailable) {
+    if (adminSessionToken) {
       await adminOperations.deleteSession(adminSessionToken);
     }
 
@@ -468,7 +444,7 @@ app.post('/api/admin/auth/logout', async (req, res) => {
     res.json({ success: true, message: 'Admin logged out successfully' });
   } catch (error) {
     console.error('Admin logout error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    throw new Error(`Admin logout failed: ${error.message}`);
   }
 });
 
@@ -566,155 +542,47 @@ let isDatabaseAvailable = false;
 
 // API Routes
 
-// Get portfolio data (requires authentication when database is available)
-app.get('/api/portfolio', async (req, res) => {
+// Get portfolio data (requires authentication)
+app.get('/api/portfolio', authenticateUser, async (req, res) => {
   try {
-    if (isDatabaseAvailable) {
-      // Require authentication for database mode
-      const sessionToken = req.cookies.sessionToken;
-      if (!sessionToken) {
-        return res.status(401).json({ authenticated: false, message: 'Authentication required' });
-      }
-
-      const session = await userOperations.findSession(sessionToken);
-      if (!session) {
-        return res.status(401).json({ authenticated: false, message: 'Invalid session' });
-      }
-
-      const portfolio = await portfolioOperations.getAll(session.user_id);
-      res.json(portfolio);
-    } else {
-      // Fallback to JSON file (no authentication required)
-      const data = await fs.readFile(PORTFOLIO_FILE, 'utf8');
-      res.json(JSON.parse(data));
-    }
+    const portfolio = await portfolioOperations.getAll(req.user.id);
+    res.json(portfolio);
   } catch (error) {
     console.error('Error fetching portfolio data:', error);
-    // Try fallback if database fails
-    if (isDatabaseAvailable) {
-      try {
-        const data = await fs.readFile(PORTFOLIO_FILE, 'utf8');
-        res.json(JSON.parse(data));
-      } catch (fallbackError) {
-        res.json([]);
-      }
-    } else {
-      res.json([]);
-    }
+    throw new Error(`Failed to fetch portfolio data: ${error.message}`);
   }
 });
 
-// Save portfolio data (requires authentication when database is available)
-app.post('/api/portfolio', async (req, res) => {
+// Save portfolio data (requires authentication)
+app.post('/api/portfolio', authenticateUser, async (req, res) => {
   try {
-    if (isDatabaseAvailable) {
-      // Require authentication for database mode
-      const sessionToken = req.cookies.sessionToken;
-      if (!sessionToken) {
-        return res.status(401).json({ authenticated: false, message: 'Authentication required' });
-      }
-
-      const session = await userOperations.findSession(sessionToken);
-      if (!session) {
-        return res.status(401).json({ authenticated: false, message: 'Invalid session' });
-      }
-
-      await portfolioOperations.saveAll(session.user_id, req.body);
-      res.json({ success: true, message: 'Portfolio saved successfully' });
-    } else {
-      // Fallback to JSON file (no authentication required)
-      await fs.writeFile(PORTFOLIO_FILE, JSON.stringify(req.body, null, 2));
-      res.json({ success: true, message: 'Portfolio saved successfully (fallback mode)' });
-    }
+    await portfolioOperations.saveAll(req.user.id, req.body);
+    res.json({ success: true, message: 'Portfolio saved successfully' });
   } catch (error) {
     console.error('Error saving portfolio data:', error);
-    // Try fallback if database fails
-    if (isDatabaseAvailable) {
-      try {
-        await fs.writeFile(PORTFOLIO_FILE, JSON.stringify(req.body, null, 2));
-        res.json({ success: true, message: 'Portfolio saved successfully (fallback)' });
-      } catch (fallbackError) {
-        res.status(500).json({ success: false, message: 'Error saving portfolio' });
-      }
-    } else {
-      res.status(500).json({ success: false, message: 'Error saving portfolio' });
-    }
+    throw new Error(`Failed to save portfolio data: ${error.message}`);
   }
 });
 
-// Get closed positions data (requires authentication when database is available)
-app.get('/api/closed-positions', async (req, res) => {
+// Get closed positions data (requires authentication)
+app.get('/api/closed-positions', authenticateUser, async (req, res) => {
   try {
-    if (isDatabaseAvailable) {
-      // Require authentication for database mode
-      const sessionToken = req.cookies.sessionToken;
-      if (!sessionToken) {
-        return res.status(401).json({ authenticated: false, message: 'Authentication required' });
-      }
-
-      const session = await userOperations.findSession(sessionToken);
-      if (!session) {
-        return res.status(401).json({ authenticated: false, message: 'Invalid session' });
-      }
-
-      const closedPositions = await closedPositionsOperations.getAll(session.user_id);
-      res.json(closedPositions);
-    } else {
-      // Fallback to JSON file (no authentication required)
-      const data = await fs.readFile(CLOSED_POSITIONS_FILE, 'utf8');
-      res.json(JSON.parse(data));
-    }
+    const closedPositions = await closedPositionsOperations.getAll(req.user.id);
+    res.json(closedPositions);
   } catch (error) {
     console.error('Error fetching closed positions data:', error);
-    // Try fallback if database fails
-    if (isDatabaseAvailable) {
-      try {
-        const data = await fs.readFile(CLOSED_POSITIONS_FILE, 'utf8');
-        res.json(JSON.parse(data));
-      } catch (fallbackError) {
-        res.json([]);
-      }
-    } else {
-      res.json([]);
-    }
+    throw new Error(`Failed to fetch closed positions data: ${error.message}`);
   }
 });
 
-// Save closed positions data (requires authentication when database is available)
-app.post('/api/closed-positions', async (req, res) => {
+// Save closed positions data (requires authentication)
+app.post('/api/closed-positions', authenticateUser, async (req, res) => {
   try {
-    if (isDatabaseAvailable) {
-      // Require authentication for database mode
-      const sessionToken = req.cookies.sessionToken;
-      if (!sessionToken) {
-        return res.status(401).json({ authenticated: false, message: 'Authentication required' });
-      }
-
-      const session = await userOperations.findSession(sessionToken);
-      if (!session) {
-        return res.status(401).json({ authenticated: false, message: 'Invalid session' });
-      }
-
-      await closedPositionsOperations.saveAll(session.user_id, req.body);
-      res.json({ success: true, message: 'Closed positions saved successfully' });
-    } else {
-      // Fallback to JSON file (no authentication required)
-      await fs.writeFile(CLOSED_POSITIONS_FILE, JSON.stringify(req.body, null, 2));
-      res.json({ success: true, message: 'Closed positions saved successfully (fallback mode)' });
-    }
+    await closedPositionsOperations.saveAll(req.user.id, req.body);
+    res.json({ success: true, message: 'Closed positions saved successfully' });
   } catch (error) {
     console.error('Error saving closed positions data:', error);
-    // Try fallback if database fails
-    if (isDatabaseAvailable) {
-      try {
-        await fs.writeFile(CLOSED_POSITIONS_FILE, JSON.stringify(req.body, null, 2));
-        res.json({ success: true, message: 'Closed positions saved successfully (fallback)' });
-      } catch (fallbackError) {
-        res.status(500).json({ success: false, message: 'Error saving closed positions' });
-      }
-    } else {
-      res.status(500).json({ success: false, message: 'Error saving closed positions' });
-    }
+    throw new Error(`Failed to save closed positions data: ${error.message}`);
   }
 });
 
@@ -765,57 +633,25 @@ app.get('/debug/files', async (req, res) => {
 
 // Watchlist API Routes
 
-// Get watchlist data
-app.get('/api/watchlist', async (req, res) => {
+// Get watchlist data (requires authentication)
+app.get('/api/watchlist', authenticateUser, async (req, res) => {
   try {
-    if (isDatabaseAvailable) {
-      // Require authentication for database mode
-      const sessionToken = req.cookies.sessionToken;
-      if (!sessionToken) {
-        return res.status(401).json({ authenticated: false, message: 'Authentication required' });
-      }
-
-      const session = await userOperations.findSession(sessionToken);
-      if (!session) {
-        return res.status(401).json({ authenticated: false, message: 'Invalid session' });
-      }
-
-      const watchlist = await watchlistOperations.getAll(session.user_id);
-      res.json(watchlist);
-    } else {
-      // Fallback mode - return empty array for now
-      res.json([]);
-    }
+    const watchlist = await watchlistOperations.getAll(req.user.id);
+    res.json(watchlist);
   } catch (error) {
     console.error('Error fetching watchlist data:', error);
-    res.json([]);
+    throw new Error(`Failed to fetch watchlist data: ${error.message}`);
   }
 });
 
-// Save watchlist data
-app.post('/api/watchlist', async (req, res) => {
+// Save watchlist data (requires authentication)
+app.post('/api/watchlist', authenticateUser, async (req, res) => {
   try {
-    if (isDatabaseAvailable) {
-      // Require authentication for database mode
-      const sessionToken = req.cookies.sessionToken;
-      if (!sessionToken) {
-        return res.status(401).json({ authenticated: false, message: 'Authentication required' });
-      }
-
-      const session = await userOperations.findSession(sessionToken);
-      if (!session) {
-        return res.status(401).json({ authenticated: false, message: 'Invalid session' });
-      }
-
-      await watchlistOperations.saveAll(session.user_id, req.body);
-      res.json({ success: true, message: 'Watchlist saved successfully' });
-    } else {
-      // Fallback mode - just return success for now
-      res.json({ success: true, message: 'Watchlist saved successfully (fallback mode)' });
-    }
+    await watchlistOperations.saveAll(req.user.id, req.body);
+    res.json({ success: true, message: 'Watchlist saved successfully' });
   } catch (error) {
     console.error('Error saving watchlist data:', error);
-    res.status(500).json({ success: false, message: 'Error saving watchlist' });
+    throw new Error(`Failed to save watchlist data: ${error.message}`);
   }
 });
 
