@@ -1715,12 +1715,91 @@ class PortfolioPro {
     }
 
     // Modal functionality
-    showAddStockModal() { 
-        this.showNotification('Add stock functionality coming soon!', 'info');
+    showAddStockModal() {
+        const modalHTML = `
+            <div id="addStockModal" class="modal-overlay active">
+                <div class="modal">
+                    <div class="modal-header">
+                        <h3>Add Stock to Portfolio</h3>
+                        <button class="modal-close" onclick="portfolioPro.hideAddStockModal()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="addStockForm">
+                            <div class="form-group">
+                                <label for="addStockSymbol">Stock Symbol</label>
+                                <div class="stock-search-container">
+                                    <input type="text" id="addStockSymbol" placeholder="Enter stock symbol (e.g., RELIANCE)" required autocomplete="off">
+                                    <div id="addStockSuggestions" class="stock-suggestions"></div>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="addStockQuantity">Quantity</label>
+                                    <input type="number" id="addStockQuantity" placeholder="100" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="addStockBuyPrice">Buy Price</label>
+                                    <input type="number" id="addStockBuyPrice" step="0.01" placeholder="0.00" required>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="addStockPurchaseDate">Purchase Date</label>
+                                    <input type="date" id="addStockPurchaseDate" value="${new Date().toISOString().split('T')[0]}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="addStockTargetPrice">Target Price (Optional)</label>
+                                    <input type="number" id="addStockTargetPrice" step="0.01" placeholder="0.00">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="addStockStopLoss">Stop Loss (Optional)</label>
+                                <input type="number" id="addStockStopLoss" step="0.01" placeholder="0.00">
+                            </div>
+                            <div class="form-actions">
+                                <button type="button" class="btn secondary" onclick="portfolioPro.hideAddStockModal()">Cancel</button>
+                                <button type="submit" class="btn primary">Add to Portfolio</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Remove any existing modal
+        const existingModal = document.getElementById('addStockModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+
+        // Add modal to page
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        document.body.style.overflow = 'hidden';
+
+        // Bind form submit event
+        document.getElementById('addStockForm').addEventListener('submit', (e) => this.handleAddStock(e));
+
+        // Setup auto-suggestion for stock symbol input
+        this.setupAddStockAutoSuggestion();
+
+        // Focus on the stock symbol input
+        setTimeout(() => {
+            document.getElementById('addStockSymbol').focus();
+        }, 100);
     }
     
-    hideAddStockModal() { 
-        console.log('Hide add stock modal'); 
+    hideAddStockModal() {
+        const modal = document.getElementById('addStockModal');
+        if (modal) {
+            modal.classList.remove('active');
+            setTimeout(() => {
+                modal.remove();
+                document.body.style.overflow = '';
+            }, 300);
+            this.selectedAddStockName = null;
+        }
     }
     
     showEditStockModal(stockId) { 
@@ -1824,10 +1903,10 @@ class PortfolioPro {
         }
     }
 
-    // Setup auto-suggestion for watchlist stock symbol input
-    setupWatchlistStockAutoSuggestion() {
-        const input = document.getElementById('watchlistStockSymbol');
-        const suggestionsContainer = document.getElementById('watchlistStockSuggestions');
+    // Generic auto-suggestion setup for stock symbol inputs
+    setupStockAutoSuggestion(inputId, suggestionsId, onSelectCallback) {
+        const input = document.getElementById(inputId);
+        const suggestionsContainer = document.getElementById(suggestionsId);
         
         if (!input || !suggestionsContainer) return;
 
@@ -1842,8 +1921,8 @@ class PortfolioPro {
                 clearTimeout(searchTimeout);
             }
 
-            // Hide suggestions if query is too short
-            if (query.length < 2) {
+            // Hide suggestions if query is too short (3 characters minimum)
+            if (query.length < 3) {
                 suggestionsContainer.style.display = 'none';
                 return;
             }
@@ -1855,7 +1934,7 @@ class PortfolioPro {
                     if (response.ok) {
                         const suggestions = await response.json();
                         currentSuggestions = suggestions;
-                        this.renderWatchlistStockSuggestions(suggestions, suggestionsContainer);
+                        this.renderStockSuggestions(suggestions, suggestionsContainer, onSelectCallback);
                     }
                 } catch (error) {
                     console.error('Error fetching stock suggestions:', error);
@@ -1913,8 +1992,86 @@ class PortfolioPro {
         });
     }
 
-    // Render stock suggestions for watchlist
-    renderWatchlistStockSuggestions(suggestions, container) {
+    // Setup auto-suggestion for watchlist stock symbol input
+    setupWatchlistStockAutoSuggestion() {
+        this.setupStockAutoSuggestion('watchlistStockSymbol', 'watchlistStockSuggestions', (symbol, name) => {
+            document.getElementById('watchlistStockSymbol').value = symbol;
+            document.getElementById('watchlistStockSuggestions').style.display = 'none';
+            this.selectedWatchlistStockName = name;
+        });
+    }
+
+    // Setup auto-suggestion for add stock modal
+    setupAddStockAutoSuggestion() {
+        this.setupStockAutoSuggestion('addStockSymbol', 'addStockSuggestions', (symbol, name) => {
+            document.getElementById('addStockSymbol').value = symbol;
+            document.getElementById('addStockSuggestions').style.display = 'none';
+            this.selectedAddStockName = name;
+        });
+    }
+
+    // Handle add stock form submission
+    async handleAddStock(e) {
+        e.preventDefault();
+        
+        const ticker = document.getElementById('addStockSymbol').value.toUpperCase().trim();
+        const quantity = parseInt(document.getElementById('addStockQuantity').value);
+        const buyPrice = parseFloat(document.getElementById('addStockBuyPrice').value);
+        const purchaseDate = document.getElementById('addStockPurchaseDate').value;
+        const targetPrice = parseFloat(document.getElementById('addStockTargetPrice').value) || null;
+        const stopLoss = parseFloat(document.getElementById('addStockStopLoss').value) || null;
+
+        if (!ticker || !quantity || !buyPrice || !purchaseDate) {
+            this.showNotification('Please fill in all required fields', 'error');
+            return;
+        }
+
+        this.showLoading();
+
+        try {
+            const stockData = await this.fetchStockData(ticker);
+            
+            const portfolioStock = {
+                id: Date.now(),
+                ticker: ticker,
+                name: this.selectedAddStockName || stockData.name,
+                quantity: quantity,
+                buyPrice: buyPrice,
+                currentPrice: stockData.currentPrice,
+                targetPrice: targetPrice,
+                stopLoss: stopLoss,
+                invested: buyPrice * quantity,
+                currentValue: stockData.currentPrice * quantity,
+                dayChange: stockData.dayChange || 0,
+                dayChangePercent: stockData.dayChangePercent || 0,
+                purchaseDate: purchaseDate,
+                lastUpdated: new Date().toISOString(),
+                position: 'Medium'
+            };
+
+            // Calculate P&L
+            portfolioStock.pl = portfolioStock.currentValue - portfolioStock.invested;
+            portfolioStock.plPercent = ((portfolioStock.pl / portfolioStock.invested) * 100);
+
+            this.portfolio.push(portfolioStock);
+            await this.savePortfolio();
+            this.renderDashboard();
+            this.hideAddStockModal();
+            
+            // Clear the selected stock name
+            this.selectedAddStockName = null;
+            
+            this.showNotification(`${ticker} added to portfolio successfully!`, 'success');
+        } catch (error) {
+            console.error('Error processing stock:', error);
+            this.showNotification('Error fetching stock data. Please check the ticker symbol.', 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    // Generic stock suggestions renderer
+    renderStockSuggestions(suggestions, container, onSelectCallback) {
         if (!suggestions || suggestions.length === 0) {
             container.style.display = 'none';
             return;
@@ -1934,15 +2091,23 @@ class PortfolioPro {
                 const symbol = item.dataset.symbol;
                 const name = item.dataset.name;
                 
-                document.getElementById('watchlistStockSymbol').value = symbol;
-                container.style.display = 'none';
-                
-                // Store the selected stock name for later use
-                this.selectedWatchlistStockName = name;
+                // Call the provided callback function
+                if (onSelectCallback) {
+                    onSelectCallback(symbol, name);
+                }
             });
         });
 
         container.style.display = 'block';
+    }
+
+    // Render stock suggestions for watchlist (backward compatibility)
+    renderWatchlistStockSuggestions(suggestions, container) {
+        this.renderStockSuggestions(suggestions, container, (symbol, name) => {
+            document.getElementById('watchlistStockSymbol').value = symbol;
+            container.style.display = 'none';
+            this.selectedWatchlistStockName = name;
+        });
     }
     
     editWatchlistStock(stockId) { 

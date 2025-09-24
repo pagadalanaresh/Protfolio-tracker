@@ -299,8 +299,32 @@ const portfolioOperations = {
       // Clear existing data for this user
       await client.query('DELETE FROM portfolio WHERE user_id = $1', [userId]);
       
-      // Insert new data (let database auto-generate IDs)
+      // Insert each item separately (allow multiple entries for same ticker)
       for (const item of portfolioData) {
+        // Ensure we have a valid ticker - use ticker or symbol, and validate it's not null/empty
+        const ticker = item.ticker || item.symbol;
+        if (!ticker || ticker.trim() === '') {
+          console.error('Skipping portfolio item with null/empty ticker:', item);
+          continue; // Skip this item if ticker is null or empty
+        }
+
+        // Ensure we have required fields with defaults
+        const name = item.name || `${ticker} Ltd`;
+        const buyPrice = item.buyPrice || item.buy_price || 0;
+        const currentPrice = item.currentPrice || item.current_price || buyPrice;
+        const quantity = item.quantity || 0;
+        const invested = item.invested || (buyPrice * quantity);
+        const currentValue = item.currentValue || item.current_value || (currentPrice * quantity);
+        const purchaseDate = item.purchaseDate || item.purchase_date || new Date().toISOString().split('T')[0];
+        const lastUpdated = item.lastUpdated || item.last_updated || new Date().toISOString();
+        const pl = item.pl || (currentValue - invested);
+        const plPercent = item.plPercent || item.pl_percent || (invested > 0 ? ((pl / invested) * 100) : 0);
+        const dayChange = item.dayChange || item.day_change || 0;
+        const dayChangePercent = item.dayChangePercent || item.day_change_percent || 0;
+        const targetPrice = item.targetPrice || item.target_price || null;
+        const stopLoss = item.stopLoss || item.stop_loss || null;
+        const position = item.position || 'Medium';
+
         await client.query(`
           INSERT INTO portfolio (
             user_id, ticker, name, buy_price, current_price, quantity, invested, 
@@ -308,10 +332,10 @@ const portfolioOperations = {
             day_change, day_change_percent, target_price, stop_loss, position
           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
         `, [
-          userId, item.ticker, item.name, item.buyPrice, item.currentPrice,
-          item.quantity, item.invested, item.currentValue, item.purchaseDate,
-          item.lastUpdated, item.pl, item.plPercent, item.dayChange,
-          item.dayChangePercent, item.targetPrice, item.stopLoss, item.position
+          userId, ticker, name, buyPrice, currentPrice,
+          quantity, invested, currentValue, purchaseDate,
+          lastUpdated, pl, plPercent, dayChange,
+          dayChangePercent, targetPrice, stopLoss, position
         ]);
       }
       
@@ -369,6 +393,31 @@ const closedPositionsOperations = {
       
       // Insert new data (let database auto-generate IDs)
       for (const item of closedPositionsData) {
+        // Ensure we have a valid ticker - use ticker or symbol, and validate it's not null/empty
+        const ticker = item.ticker || item.symbol;
+        if (!ticker || ticker.trim() === '') {
+          console.error('Skipping closed position with null/empty ticker:', item);
+          continue; // Skip this item if ticker is null or empty
+        }
+
+        // Ensure we have required fields with defaults
+        const name = item.name || `${ticker} Ltd`;
+        const buyPrice = item.buyPrice || item.buy_price || 0;
+        const currentPrice = item.currentPrice || item.current_price || buyPrice;
+        const quantity = item.quantity || 0;
+        const invested = item.invested || (buyPrice * quantity);
+        const currentValue = item.currentValue || item.current_value || (currentPrice * quantity);
+        const purchaseDate = item.purchaseDate || item.purchase_date || item.buyDate || new Date().toISOString().split('T')[0];
+        const lastUpdated = item.lastUpdated || item.last_updated || new Date().toISOString();
+        const pl = item.pl || item.finalPL || item.final_pl || (currentValue - invested);
+        const plPercent = item.plPercent || item.finalPLPercent || item.final_pl_percent || ((pl / invested) * 100);
+        const closePrice = item.closePrice || item.close_price || item.sellPrice || currentPrice;
+        const closeValue = item.closeValue || item.close_value || item.realized || (closePrice * quantity);
+        const finalPL = item.finalPL || item.final_pl || pl;
+        const finalPLPercent = item.finalPLPercent || item.final_pl_percent || plPercent;
+        const closedDate = item.closedDate || item.closed_date || item.sellDate || new Date().toISOString().split('T')[0];
+        const holdingPeriod = item.holdingPeriod || item.holding_period || 'N/A';
+
         await client.query(`
           INSERT INTO closed_positions (
             user_id, ticker, name, buy_price, current_price, quantity, invested,
@@ -377,11 +426,11 @@ const closedPositionsOperations = {
             closed_date, holding_period
           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         `, [
-          userId, item.ticker, item.name, item.buyPrice, item.currentPrice,
-          item.quantity, item.invested, item.currentValue, item.purchaseDate,
-          item.lastUpdated, item.pl, item.plPercent, item.closePrice,
-          item.closeValue, item.finalPL, item.finalPLPercent, item.closedDate,
-          item.holdingPeriod
+          userId, ticker, name, buyPrice, currentPrice,
+          quantity, invested, currentValue, purchaseDate,
+          lastUpdated, pl, plPercent, closePrice,
+          closeValue, finalPL, finalPLPercent, closedDate,
+          holdingPeriod
         ]);
       }
       
