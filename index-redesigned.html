@@ -766,8 +766,11 @@
                 <form id="addStockForm">
                     <div class="form-group">
                         <label for="stockSymbol">Stock Symbol</label>
-                        <input type="text" id="stockSymbol" placeholder="e.g., RELIANCE, TCS, HDFCBANK" required>
-                        <small class="form-help">Enter NSE stock symbol</small>
+                        <div class="stock-search-container">
+                            <input type="text" id="stockSymbol" placeholder="e.g., RELIANCE, TCS, HDFCBANK" required autocomplete="off">
+                            <div id="stockSuggestions" class="stock-suggestions"></div>
+                        </div>
+                        <small class="form-help">Enter NSE stock symbol - suggestions will appear after 3 characters</small>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
@@ -1013,8 +1016,11 @@
                 <form id="addWatchlistForm">
                     <div class="form-group">
                         <label for="watchlistSymbol">Stock Symbol</label>
-                        <input type="text" id="watchlistSymbol" placeholder="e.g., ASIANPAINT, MARUTI" required>
-                        <small class="form-help">Enter NSE stock symbol</small>
+                        <div class="stock-search-container">
+                            <input type="text" id="watchlistSymbol" placeholder="e.g., ASIANPAINT, MARUTI" required autocomplete="off">
+                            <div id="watchlistSuggestions" class="stock-suggestions"></div>
+                        </div>
+                        <small class="form-help">Enter NSE stock symbol - suggestions will appear after 3 characters</small>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
@@ -1112,6 +1118,6 @@
         </div>
     </div>
 
-    <script src="script-demo.js"></script>
+    <script type="module" src="script-demo.js"></script>
 </body>
 </html>

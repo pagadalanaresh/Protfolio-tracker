@@ -95,7 +95,7 @@ async function initializeDatabase() {
     // Create watchlist table with user_id foreign key
     await client.query(`
       CREATE TABLE IF NOT EXISTS watchlist (
-        id BIGSERIAL,
+        id BIGSERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         ticker VARCHAR(50) NOT NULL,
         name VARCHAR(255) NOT NULL,
@@ -109,7 +109,7 @@ async function initializeDatabase() {
         added_date DATE NOT NULL,
         last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id, user_id)
+        UNIQUE(user_id, ticker)
       )
     `);
 
@@ -482,15 +482,33 @@ const watchlistOperations = {
       
       // Insert new watchlist items (let database auto-generate IDs)
       for (const item of watchlistItems) {
+        // Ensure we have a valid ticker - use ticker or symbol, and validate it's not null/empty
+        const ticker = item.ticker || item.symbol;
+        if (!ticker || ticker.trim() === '') {
+          console.error('Skipping watchlist item with null/empty ticker:', item);
+          continue; // Skip this item if ticker is null or empty
+        }
+
+        // Ensure we have required fields with defaults
+        const name = item.name || `${ticker} Ltd`;
+        const sector = item.sector || 'Technology';
+        const currentPrice = item.currentPrice || item.current_price || 0;
+        const dayChange = item.dayChange || item.day_change || 0;
+        const dayChangePercent = item.dayChangePercent || item.day_change_percent || 0;
+        const targetPrice = item.targetPrice || item.target_price || null;
+        const stopLoss = item.stopLoss || item.stop_loss || null;
+        const notes = item.notes || null;
+        const addedDate = item.addedDate || item.added_date || new Date().toISOString().split('T')[0];
+        const lastUpdated = item.lastUpdated || item.last_updated || new Date().toISOString();
+
         await client.query(`
           INSERT INTO watchlist (
             user_id, ticker, name, sector, current_price, day_change, 
             day_change_percent, target_price, stop_loss, notes, added_date, last_updated
           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         `, [
-          userId, item.ticker || item.symbol, item.name, item.sector,
-          item.currentPrice, item.dayChange, item.dayChangePercent,
-          item.targetPrice, item.stopLoss, item.notes, item.addedDate, item.lastUpdated
+          userId, ticker, name, sector, currentPrice, dayChange, 
+          dayChangePercent, targetPrice, stopLoss, notes, addedDate, lastUpdated
         ]);
       }
       

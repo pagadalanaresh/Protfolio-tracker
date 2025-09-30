@@ -316,6 +316,14 @@ async function authenticateAdmin(req, res, next) {
       return res.status(401).json({ authenticated: false, message: 'No admin session token' });
     }
 
+    // Check if database is available
+    if (!isDatabaseAvailable) {
+      return res.status(503).json({ 
+        authenticated: false, 
+        message: 'Database connection unavailable. Admin features require database access.' 
+      });
+    }
+
     const session = await adminOperations.findSession(adminSessionToken);
     if (!session) {
       return res.status(401).json({ authenticated: false, message: 'Invalid admin session' });
@@ -330,7 +338,10 @@ async function authenticateAdmin(req, res, next) {
     next();
   } catch (error) {
     console.error('Admin authentication error:', error);
-    throw new Error(`Admin authentication failed: ${error.message}`);
+    res.status(500).json({ 
+      authenticated: false, 
+      message: 'Database error during authentication. Please check database connection.' 
+    });
   }
 }
 
@@ -344,6 +355,15 @@ app.get('/api/admin/auth/check', async (req, res) => {
     if (!adminSessionToken) {
       console.log(`[${timestamp}] Admin auth check failed - No session token`);
       return res.json({ authenticated: false });
+    }
+
+    // Check if database is available
+    if (!isDatabaseAvailable) {
+      console.log(`[${timestamp}] Admin auth check failed - Database not connected`);
+      return res.json({ 
+        authenticated: false, 
+        message: 'Database connection unavailable. Admin features require database access.' 
+      });
     }
 
     const session = await adminOperations.findSession(adminSessionToken);
@@ -362,7 +382,10 @@ app.get('/api/admin/auth/check', async (req, res) => {
     });
   } catch (error) {
     console.error(`[${timestamp}] Admin auth check error:`, error);
-    throw new Error(`Admin authentication check failed: ${error.message}`);
+    res.status(500).json({ 
+      authenticated: false, 
+      message: 'Database error during authentication check. Please check database connection.' 
+    });
   }
 });
 
@@ -381,6 +404,15 @@ app.post('/api/admin/auth/login', async (req, res) => {
     }
 
     console.log(`[${timestamp}] Looking up admin: ${username}`);
+
+    // Check if database is available
+    if (!isDatabaseAvailable) {
+      console.log(`[${timestamp}] Admin login failed - Database not connected`);
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Database connection unavailable. Please check database configuration and try again.' 
+      });
+    }
 
     // Find admin
     const admin = await adminOperations.findByUsername(username);
@@ -427,7 +459,10 @@ app.post('/api/admin/auth/login', async (req, res) => {
     });
   } catch (error) {
     console.error(`[${timestamp}] Admin login error:`, error);
-    throw new Error(`Admin login failed: ${error.message}`);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Database error occurred during login. Please check database connection.' 
+    });
   }
 });
 
@@ -451,21 +486,47 @@ app.post('/api/admin/auth/logout', async (req, res) => {
 // Get all users (admin only)
 app.get('/api/admin/users', authenticateAdmin, async (req, res) => {
   try {
+    // If database is not available, return proper error
+    if (!isDatabaseAvailable) {
+      console.log('Database not available - cannot fetch users');
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Database connection unavailable. Cannot fetch user data.' 
+      });
+    }
+
     const users = await adminOperations.getAllUsers();
     
     // Get stats for each user
     const usersWithStats = await Promise.all(users.map(async (user) => {
-      const stats = await adminOperations.getUserStats(user.id);
-      return {
-        ...user,
-        stats
-      };
+      try {
+        const stats = await adminOperations.getUserStats(user.id);
+        return {
+          ...user,
+          stats
+        };
+      } catch (statsError) {
+        console.error(`Error getting stats for user ${user.id}:`, statsError);
+        return {
+          ...user,
+          stats: {
+            portfolioCount: 0,
+            closedPositionsCount: 0,
+            watchlistCount: 0,
+            totalInvested: 0,
+            totalCurrentValue: 0
+          }
+        };
+      }
     }));
     
     res.json(usersWithStats);
   } catch (error) {
     console.error('Error fetching users:', error);
-    res.status(500).json({ success: false, message: 'Error fetching users' });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Database error occurred while fetching users. Please check database connection.' 
+    });
   }
 });
 
@@ -707,11 +768,66 @@ app.get('/api/db-status', async (req, res) => {
     const isConnected = await testConnection();
     res.json({ 
       database: isConnected ? 'connected' : 'disconnected',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      isDatabaseAvailable: isDatabaseAvailable,
+      environment: process.env.NODE_ENV || 'development',
+      databaseUrl: process.env.DATABASE_URL ? 'SET' : 'NOT_SET',
+      postgresUrl: process.env.POSTGRES_URL ? 'SET' : 'NOT_SET'
     });
   } catch (error) {
     res.status(500).json({ 
       database: 'error',
+      error: error.message,
+      timestamp: new Date().toISOString(),
+      isDatabaseAvailable: isDatabaseAvailable,
+      environment: process.env.NODE_ENV || 'development',
+      databaseUrl: process.env.DATABASE_URL ? 'SET' : 'NOT_SET',
+      postgresUrl: process.env.POSTGRES_URL ? 'SET' : 'NOT_SET'
+    });
+  }
+});
+
+// Admin debug endpoint
+app.get('/api/admin/debug', async (req, res) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] Admin debug endpoint called`);
+  
+  try {
+    const debugInfo = {
+      timestamp: new Date().toISOString(),
+      isDatabaseAvailable: isDatabaseAvailable,
+      environment: process.env.NODE_ENV || 'development',
+      databaseUrl: process.env.DATABASE_URL ? 'SET' : 'NOT_SET',
+      postgresUrl: process.env.POSTGRES_URL ? 'SET' : 'NOT_SET'
+    };
+
+    // Test database connection in real-time
+    try {
+      const isConnected = await testConnection();
+      debugInfo.realTimeDbTest = isConnected ? 'connected' : 'disconnected';
+    } catch (dbError) {
+      debugInfo.realTimeDbTest = 'error';
+      debugInfo.dbError = dbError.message;
+    }
+
+    // Test admin operations if database is available
+    if (isDatabaseAvailable) {
+      try {
+        const adminCount = await adminOperations.getAllUsers();
+        debugInfo.adminOperationsTest = 'working';
+        debugInfo.userCount = adminCount.length;
+      } catch (adminError) {
+        debugInfo.adminOperationsTest = 'error';
+        debugInfo.adminError = adminError.message;
+      }
+    } else {
+      debugInfo.adminOperationsTest = 'skipped - database not available';
+    }
+
+    res.json(debugInfo);
+  } catch (error) {
+    console.error(`[${timestamp}] Admin debug error:`, error);
+    res.status(500).json({ 
       error: error.message,
       timestamp: new Date().toISOString()
     });
@@ -794,7 +910,7 @@ async function startServer() {
       await initializeDatabase();
       
       // Migrate existing JSON data if database is available
-      await migrateJsonToDatabase();
+      // await migrateJsonToDatabase();
     }
     
     app.listen(PORT, () => {

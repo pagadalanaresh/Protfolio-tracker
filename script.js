@@ -1908,13 +1908,28 @@ class PortfolioPro {
         const input = document.getElementById(inputId);
         const suggestionsContainer = document.getElementById(suggestionsId);
         
-        if (!input || !suggestionsContainer) return;
+        if (!input || !suggestionsContainer) {
+            console.warn(`Stock autocomplete setup failed: input ${inputId} or suggestions ${suggestionsId} not found`);
+            return;
+        }
 
         let searchTimeout;
         let currentSuggestions = [];
 
+        // Show loading state
+        const showLoading = () => {
+            suggestionsContainer.innerHTML = '<div class="suggestion-loading">Searching stocks...</div>';
+            suggestionsContainer.style.display = 'block';
+        };
+
+        // Hide suggestions
+        const hideSuggestions = () => {
+            suggestionsContainer.style.display = 'none';
+            suggestionsContainer.innerHTML = '';
+        };
+
         input.addEventListener('input', (e) => {
-            const query = e.target.value.trim();
+            const query = e.target.value.trim().toUpperCase();
             
             // Clear previous timeout
             if (searchTimeout) {
@@ -1923,9 +1938,12 @@ class PortfolioPro {
 
             // Hide suggestions if query is too short (3 characters minimum)
             if (query.length < 3) {
-                suggestionsContainer.style.display = 'none';
+                hideSuggestions();
                 return;
             }
+
+            // Show loading state immediately
+            showLoading();
 
             // Debounce search requests
             searchTimeout = setTimeout(async () => {
@@ -1934,11 +1952,20 @@ class PortfolioPro {
                     if (response.ok) {
                         const suggestions = await response.json();
                         currentSuggestions = suggestions;
-                        this.renderStockSuggestions(suggestions, suggestionsContainer, onSelectCallback);
+                        
+                        if (suggestions.length > 0) {
+                            this.renderStockSuggestions(suggestions, suggestionsContainer, onSelectCallback);
+                        } else {
+                            suggestionsContainer.innerHTML = '<div class="suggestion-no-results">No stocks found matching your search</div>';
+                            suggestionsContainer.style.display = 'block';
+                        }
+                    } else {
+                        throw new Error(`Search API error: ${response.status}`);
                     }
                 } catch (error) {
                     console.error('Error fetching stock suggestions:', error);
-                    suggestionsContainer.style.display = 'none';
+                    suggestionsContainer.innerHTML = '<div class="suggestion-error">Error searching stocks. Please try again.</div>';
+                    suggestionsContainer.style.display = 'block';
                 }
             }, 300);
         });
@@ -1953,26 +1980,32 @@ class PortfolioPro {
                 if (activeSuggestion) {
                     activeSuggestion.classList.remove('active');
                     const next = activeSuggestion.nextElementSibling;
-                    if (next) {
+                    if (next && next.classList.contains('suggestion-item')) {
                         next.classList.add('active');
+                        next.scrollIntoView({ block: 'nearest' });
                     } else {
                         suggestionItems[0]?.classList.add('active');
+                        suggestionItems[0]?.scrollIntoView({ block: 'nearest' });
                     }
                 } else {
                     suggestionItems[0]?.classList.add('active');
+                    suggestionItems[0]?.scrollIntoView({ block: 'nearest' });
                 }
             } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
                 if (activeSuggestion) {
                     activeSuggestion.classList.remove('active');
                     const prev = activeSuggestion.previousElementSibling;
-                    if (prev) {
+                    if (prev && prev.classList.contains('suggestion-item')) {
                         prev.classList.add('active');
+                        prev.scrollIntoView({ block: 'nearest' });
                     } else {
                         suggestionItems[suggestionItems.length - 1]?.classList.add('active');
+                        suggestionItems[suggestionItems.length - 1]?.scrollIntoView({ block: 'nearest' });
                     }
                 } else {
                     suggestionItems[suggestionItems.length - 1]?.classList.add('active');
+                    suggestionItems[suggestionItems.length - 1]?.scrollIntoView({ block: 'nearest' });
                 }
             } else if (e.key === 'Enter') {
                 if (activeSuggestion) {
@@ -1980,14 +2013,36 @@ class PortfolioPro {
                     activeSuggestion.click();
                 }
             } else if (e.key === 'Escape') {
-                suggestionsContainer.style.display = 'none';
+                hideSuggestions();
+                input.blur();
+            } else if (e.key === 'Tab') {
+                hideSuggestions();
             }
+        });
+
+        // Handle input focus
+        input.addEventListener('focus', () => {
+            if (input.value.trim().length >= 3 && currentSuggestions.length > 0) {
+                this.renderStockSuggestions(currentSuggestions, suggestionsContainer, onSelectCallback);
+            }
+        });
+
+        // Handle input blur with delay to allow for clicks
+        input.addEventListener('blur', () => {
+            setTimeout(() => {
+                hideSuggestions();
+            }, 150);
+        });
+
+        // Prevent suggestions from closing when clicking inside
+        suggestionsContainer.addEventListener('mousedown', (e) => {
+            e.preventDefault();
         });
 
         // Hide suggestions when clicking outside
         document.addEventListener('click', (e) => {
             if (!input.contains(e.target) && !suggestionsContainer.contains(e.target)) {
-                suggestionsContainer.style.display = 'none';
+                hideSuggestions();
             }
         });
     }
@@ -2079,14 +2134,16 @@ class PortfolioPro {
 
         container.innerHTML = suggestions.map(stock => `
             <div class="suggestion-item" data-symbol="${stock.symbol}" data-name="${stock.name}">
-                <div class="suggestion-symbol">${stock.symbol}</div>
-                <div class="suggestion-name">${stock.name}</div>
+                <div class="suggestion-left">
+                    <div class="suggestion-symbol">${stock.symbol}</div>
+                    <div class="suggestion-name">${stock.name}</div>
+                </div>
                 <div class="suggestion-exchange">${stock.exchange}</div>
             </div>
         `).join('');
 
         // Add click handlers for suggestions
-        container.querySelectorAll('.suggestion-item').forEach(item => {
+        container.querySelectorAll('.suggestion-item').forEach((item, index) => {
             item.addEventListener('click', () => {
                 const symbol = item.dataset.symbol;
                 const name = item.dataset.name;
@@ -2096,9 +2153,23 @@ class PortfolioPro {
                     onSelectCallback(symbol, name);
                 }
             });
+
+            // Add hover handlers for better UX
+            item.addEventListener('mouseenter', () => {
+                // Remove active class from all items
+                container.querySelectorAll('.suggestion-item').forEach(i => i.classList.remove('active'));
+                // Add active class to hovered item
+                item.classList.add('active');
+            });
         });
 
         container.style.display = 'block';
+        
+        // Auto-select first item for keyboard navigation
+        const firstItem = container.querySelector('.suggestion-item');
+        if (firstItem) {
+            firstItem.classList.add('active');
+        }
     }
 
     // Render stock suggestions for watchlist (backward compatibility)
